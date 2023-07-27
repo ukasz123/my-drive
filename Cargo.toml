@@ -10,9 +10,10 @@ actix-files = "0.6.2"
 actix-web = "4.3.1"
 anyhow = "1.0.72"
 dotenv = "0.15.0"
-handlebars = {version = "4.3.7", features = ["dir_source"]}
-serde = {version="1.0.174", features= ["derive"]}
-serde_json ="1.0.*"
+file-format = { version = "0.18.0", features = ["reader"] }
+handlebars = { version = "4.3.7", features = ["dir_source"] }
+serde = { version = "1.0.174", features = ["derive"] }
+serde_json = "1.0.*"
 thiserror = "1.0.44"
 tracing = "0.1.37"
 tracing-actix-web = "0.7.5"

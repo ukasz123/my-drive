@@ -1,15 +1,18 @@
 {{#if file.is_dir}}
-<tr class="align-middle" hx-get="{{path}}/{{file.name}}" hx-target="#file-listing" style="cursor: pointer" hx-push-url="true">
+<tr class="align-middle" hx-get="{{path}}/{{file.name}}" hx-target="#file-listing" style="cursor: pointer"
+  hx-push-url="true">
   {{else}}
 <tr class="align-middle">
   {{/if}}
-  <td><i class="{{#if file.is_dir }}bi-folder{{else}}bi-file{{/if}}" /></td>
+  <td>
+    <i class="{{#if file.is_dir }}bi-folder{{else}}{{> file_icon type=file.file_type.f_type}}{{/if}}"></i>
+  </td>
   <td>
     <div>{{file.name}}</div>
   </td>
   <td>
     {{#unless file.is_dir}}
-      <button type="button" class="btn btn-primary"><i class="bi-cloud-download"></i></button>
+    <button type="button" class="btn btn-primary"><i class="bi-cloud-download"></i></button>
     {{/unless}}
     <button type="button" class="btn btn-danger"><i class="bi-trash"></i></button>
   </td>

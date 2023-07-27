@@ -1,28 +1,29 @@
 <div class="container">
-    <div>
-      <div class="h2">Current directory: /{{path}}</div>
-    </div>
-    <hr />
-    <table class="table table-striped">
-      <thead class="table-light">
-        <tr>
-          <th scope="col" style="width:5%;min-width:40px"></th>
-          <th scope="col">File name</th>
-          <th scope="col" style="width:20%;min-width:132px">Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {{#if (is-some-string parent)}}
-            <tr class="align-middle" hx-get="/#/{{parent}}" hx-target="#file-listing" style="cursor: pointer" hx-push-url="true">
-                <td><i class="bi-arrow-90deg-up"></i></td>
-                <td>..</td>
-                <td></td>
-            </tr>
-            
-        {{/if}}
-        {{#each files}}
-          {{> files_row file=this path=../path}}
-        {{/each}}
-      </tbody>
-    </table>
+  <div>
+    <div class="h2">Current directory: {{path}}</div>
   </div>
+  <hr />
+  <table class="table table-striped">
+    <thead class="table-light">
+      <tr>
+        <th scope="col" style="width:5%;min-width:40px"></th>
+        <th scope="col">File name</th>
+        <th scope="col" style="width:20%;min-width:132px">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#if (is-some-string parent)}}
+      <tr class="align-middle" hx-get="{{#if parent}}{{parent}}{{else}}/{{/if}}" hx-target="#file-listing"
+        style="cursor: pointer" hx-push-url="true">
+        <td><i class="bi-arrow-90deg-up"></i></td>
+        <td>..</td>
+        <td></td>
+      </tr>
+
+      {{/if}}
+      {{#each files}}
+      {{> files_row file=this path=../path}}
+      {{/each}}
+    </tbody>
+  </table>
+</div>

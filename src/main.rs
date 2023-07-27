@@ -6,9 +6,57 @@ use handlebars::{handlebars_helper, Handlebars};
 use tracing::debug;
 
 #[derive(Debug, serde::Serialize)]
+struct FileType {
+    pub mime: String,
+    pub f_type: String,
+}
+
+impl Default for FileType {
+    fn default() -> Self {
+        Self {
+            mime: "application/octet-stream".to_owned(),
+            f_type: "unknown".to_owned(),
+        }
+    }
+}
+
+impl TryFrom<&std::path::Path> for FileType {
+    type Error = anyhow::Error;
+    fn try_from(value: &std::path::Path) -> Result<FileType> {
+        let info = file_format::FileFormat::from_file(value);
+        let info = info?;
+        Ok(FileType {
+            mime: info.media_type().to_owned(),
+            f_type: match info.kind() {
+                file_format::Kind::Application | file_format::Kind::Executable => "app",
+                file_format::Kind::Archive
+                | file_format::Kind::Compression
+                | file_format::Kind::Disk
+                | file_format::Kind::Package
+                | file_format::Kind::Rom => "archive",
+                file_format::Kind::Audio => "audio",
+                file_format::Kind::Certificate
+                | file_format::Kind::Document
+                | file_format::Kind::Geospatial
+                | file_format::Kind::Model => "document",
+                file_format::Kind::Font => "font",
+                file_format::Kind::Image => "image",
+                file_format::Kind::Book
+                | file_format::Kind::Subtitle
+                | file_format::Kind::Syndication
+                | file_format::Kind::Text => "txt",
+                file_format::Kind::Playlist | file_format::Kind::Video => "video",
+            }
+            .to_owned(),
+        })
+    }
+}
+
+#[derive(Debug, serde::Serialize)]
 struct FileInfo {
     pub name: String,
     pub is_dir: bool,
+    pub file_type: Option<FileType>,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -25,7 +73,7 @@ async fn index(
     req: HttpRequest,
 ) -> impl Responder {
     let data = handle_list_files_request(&base_dir, &req).await;
-    debug!("files_listing: {:?}", data);
+    // debug!("files_listing: {:?}", data);
     match data {
         Ok(data) => {
             let body = hb.render("index", &data).unwrap();
@@ -77,9 +125,17 @@ async fn list_files(dir: &PathBuf, base_dir: &PathBuf) -> Result<FilesResult> {
     let files = dir
         .read_dir()?
         .filter_map(|f| {
-            f.ok().map(|f| FileInfo {
-                name: f.file_name().into_string().unwrap(),
-                is_dir: f.file_type().map(|t| t.is_dir()).unwrap_or(false),
+            f.ok().map(|f| {
+                let is_dir = f.file_type().map(|t| t.is_dir()).unwrap_or(false);
+                FileInfo {
+                    name: f.file_name().into_string().unwrap(),
+                    is_dir: is_dir,
+                    file_type: if is_dir {
+                        None
+                    } else {
+                        Some((f.path().as_path()).try_into().unwrap_or_default())
+                    },
+                }
             })
         })
         .filter(|f| !f.name.starts_with(".")) // ignore hidden files
@@ -97,12 +153,15 @@ async fn list_files(dir: &PathBuf, base_dir: &PathBuf) -> Result<FilesResult> {
 }
 
 fn relative_path(path: &PathBuf, base_dir: &PathBuf) -> Result<String> {
-    Ok(path
-        .strip_prefix(base_dir)?
-        .as_os_str()
-        .to_str()
-        .unwrap()
-        .to_string())
+    let path = path
+    .strip_prefix(base_dir)?
+    .as_os_str()
+    .to_str()
+    .unwrap();
+    if path.is_empty() {
+        return Ok("".to_owned());
+    }
+    Ok(format!("/{}",path))
 }
 
 #[actix_web::main]
@@ -118,6 +177,8 @@ async fn main() -> std::io::Result<()> {
     let mut handlebars = Handlebars::new();
     handlebars.set_dev_mode(true);
     handlebars.register_helper("is-some-string", Box::new(is_some_string));
+    handlebars.register_decorator("switch", Box::new(switch));
+    handlebars.register_helper("case", Box::new(case));
     handlebars
         .register_templates_directory(".hbs", "./templates")
         .unwrap();
@@ -150,3 +211,75 @@ async fn main() -> std::io::Result<()> {
 }
 
 handlebars::handlebars_helper!(is_some_string: |option: Option<String>| option.is_some() );
+
+use handlebars::*;
+fn switch<'reg: 'rc, 'rc>(
+    d: &Decorator,
+    _: &Handlebars,
+    ctx: &Context,
+    rc: &mut RenderContext,
+) -> Result<(), RenderError> {
+    let switch_param = d
+        .param(0)
+        .ok_or(RenderError::new("switch param not found"))?;
+    // modify json object
+    let mut new_ctx = ctx.clone();
+    {
+        let new_value = switch_param.value().clone();
+        println!("new_value: {:?}", new_value);
+        let data = new_ctx.data_mut();
+        if let Some(ref mut m) = data.as_object_mut() {
+            m.insert("my-drive-switch".to_string(), new_value);
+        }
+    }
+    rc.set_context(new_ctx);
+    Ok(())
+}
+
+fn case<'reg, 'rc>(
+    h: &Helper<'reg, 'rc>,
+    r: &'reg Handlebars<'reg>,
+    ctx: &'rc Context,
+    rc: &mut RenderContext<'reg, 'rc>,
+    out: &mut dyn Output,
+) -> HelperResult {
+    let actual = ctx.data();
+    let expected = h.param(0).unwrap().value();
+    debug!("case: {:?} == {:?}", actual, expected);
+    if expected == actual {
+        h.template()
+            .map(|t| {
+                let v = h.param(0).unwrap().value();
+                rc.set_context(Context::from(v.clone()));
+                t.render(r, ctx, rc, out)
+            })
+            .unwrap_or(Ok(()))
+    } else {
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use handlebars::Handlebars;
+
+    #[test]
+    fn test_handlebars_case() {
+        let mut handlebars = Handlebars::new();
+        handlebars.register_decorator("switch", Box::new(super::switch));
+        handlebars.register_helper("case", Box::new(super::case));
+        let template = "{{#*switch test}}>{{my-drive-switch}}<{{#if (eq my-drive-switch 1)}}one{{/if}}{{#if (eq my-drive-switch 2)}}2{{/if}}{{#case 2}}two{{/case}}{{#case 3}}three{{/case}}{{/switch}}";
+        assert_eq!(
+            handlebars
+                .render_template(template, &serde_json::json!({"test":1}))
+                .unwrap(),
+            "one".to_owned()
+        );
+        assert_eq!(
+            handlebars
+                .render_template(template, &serde_json::json!({"test":2}))
+                .unwrap(),
+            "two".to_owned()
+        );
+    }
+}
