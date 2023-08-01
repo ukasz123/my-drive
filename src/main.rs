@@ -1,6 +1,6 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, fs};
 
-use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer, Responder};
+use actix_web::{web, App, Either, HttpRequest, HttpResponse, HttpServer, Responder};
 use anyhow::Result;
 use glob::glob;
 use handlebars::{handlebars_helper, Handlebars};
@@ -77,10 +77,13 @@ async fn index(
     let data = handle_list_files_request(&base_dir, &req).await;
     // debug!("files_listing: {:?}", data);
     match data {
-        Ok(data) => {
-            let body = hb.render("index", &data).unwrap();
-            HttpResponse::Ok().body(body)
-        }
+        Ok(data) => match data {
+            Either::Left(data) => {
+                let body = hb.render("index", &data).unwrap();
+                HttpResponse::Ok().body(body)
+            }
+            Either::Right(resp) => resp,
+        },
         Err(_) => HttpResponse::InternalServerError().finish(),
     }
 }
@@ -92,10 +95,13 @@ async fn folder_contents(
 ) -> impl Responder {
     let data = handle_list_files_request(&base_dir, &req).await;
     match data {
-        Ok(data) => {
-            let body = hb.render("files_listing", &data).unwrap();
-            HttpResponse::Ok().body(body)
-        }
+        Ok(data) => match data {
+            Either::Left(data) => {
+                let body = hb.render("files_listing", &data).unwrap();
+                HttpResponse::Ok().body(body)
+            }
+            Either::Right(resp) => resp,
+        },
         Err(anyhow_err) => match anyhow_err.downcast_ref::<FileListInputError>() {
             Some(err) => HttpResponse::BadRequest().body(err.to_string()),
             None => HttpResponse::InternalServerError().finish(),
@@ -112,15 +118,19 @@ enum FileListInputError {
 async fn handle_list_files_request(
     base_dir: &web::Data<PathBuf>,
     req: &HttpRequest,
-) -> Result<FilesResult> {
+) -> Result<Either<FilesResult, HttpResponse>> {
     let path: PathBuf = req.match_info().query("path").parse().unwrap();
     let path = &base_dir.join(path).to_path_buf();
     if !path.starts_with(base_dir.as_path()) {
         return Err(FileListInputError::InvalidPath(path.to_path_buf()).into());
     }
+    if path.is_file() {
+        let file_type = FileType::try_from(path.as_path())?;
+        return Ok(Either::Right(HttpResponse::Ok().content_type(file_type.mime).body(fs::read(path)?)))
+    }
     let data = list_files(path, &base_dir).await?;
     debug!("files_listing: {:?}", data);
-    Ok(data)
+    Ok(Either::Left(data))
 }
 
 async fn list_files(dir: &PathBuf, base_dir: &PathBuf) -> Result<FilesResult> {
@@ -196,14 +206,14 @@ async fn query_files(
                         },
                     }
                 })
-                .filter(|f| !f.name.starts_with("."))// ignore hidden files
+                .filter(|f| !f.name.starts_with(".")) // ignore hidden files
                 .collect::<Vec<_>>();
-                let body = hb.render("query_results", &json!({"files" : files})).unwrap();
-                HttpResponse::Ok().body(body)
+            let body = hb
+                .render("query_results", &json!({ "files": files }))
+                .unwrap();
+            HttpResponse::Ok().body(body)
         }
-        Err(_) => {
-            HttpResponse::InternalServerError().finish()
-        }
+        Err(_) => HttpResponse::InternalServerError().finish(),
     }
 }
 
@@ -245,11 +255,14 @@ async fn main() -> std::io::Result<()> {
                     )
                     .route(web::get().to(index)),
             )
-        // .service(index)
-        // .route("/{path:.*}", web::get().to(folder_contents))
-        // .route("/{path:.*}", web::get().to(folder_contents))
     })
-    .bind(("127.0.0.1", 8080))?
+    .bind((
+        "127.0.0.1",
+        dotenv::var("PORT")
+            .unwrap_or("8080".to_owned())
+            .parse::<u16>()
+            .unwrap(),
+    ))?
     .run()
     .await
 }
