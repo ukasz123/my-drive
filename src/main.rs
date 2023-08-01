@@ -2,7 +2,9 @@ use std::path::PathBuf;
 
 use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer, Responder};
 use anyhow::Result;
+use glob::glob;
 use handlebars::{handlebars_helper, Handlebars};
+use serde_json::json;
 use tracing::debug;
 
 #[derive(Debug, serde::Serialize)]
@@ -153,15 +155,56 @@ async fn list_files(dir: &PathBuf, base_dir: &PathBuf) -> Result<FilesResult> {
 }
 
 fn relative_path(path: &PathBuf, base_dir: &PathBuf) -> Result<String> {
-    let path = path
-    .strip_prefix(base_dir)?
-    .as_os_str()
-    .to_str()
-    .unwrap();
+    let path = path.strip_prefix(base_dir)?.as_os_str().to_str().unwrap();
     if path.is_empty() {
         return Ok("".to_owned());
     }
-    Ok(format!("/{}",path))
+    Ok(format!("/{}", path))
+}
+
+#[derive(serde::Deserialize)]
+struct QueryFilterRequest {
+    query: String,
+}
+
+#[actix_web::post("/")]
+async fn query_files(
+    request: web::Form<QueryFilterRequest>,
+    hb: web::Data<Handlebars<'_>>,
+    base_dir: web::Data<PathBuf>,
+) -> impl Responder {
+    let query = &request.query;
+
+    let result = glob(&format!(
+        "{}/**/{}*",
+        &base_dir.as_os_str().to_str().unwrap(),
+        query
+    ));
+    match result {
+        Ok(paths) => {
+            let files = paths
+                .filter_map(|p| p.ok())
+                .map(|path| {
+                    let is_dir = path.is_dir();
+                    FileInfo {
+                        name: path.file_name().unwrap().to_str().unwrap().to_owned(),
+                        is_dir: is_dir,
+                        file_type: if is_dir {
+                            None
+                        } else {
+                            Some((path.as_path()).try_into().unwrap_or_default())
+                        },
+                    }
+                })
+                .filter(|f| !f.name.starts_with("."))// ignore hidden files
+                .collect::<Vec<_>>();
+                let body = hb.render("query_results", &json!({"files" : files})).unwrap();
+                HttpResponse::Ok().body(body)
+        }
+        Err(_) => {
+            HttpResponse::InternalServerError().finish()
+        }
+    }
 }
 
 #[actix_web::main]
@@ -192,6 +235,7 @@ async fn main() -> std::io::Result<()> {
             .service(actix_files::Files::new("/static", "./static"))
             .app_data(base_dir_data.clone())
             .app_data(handlebars_ref.clone())
+            .service(query_files)
             .service(
                 web::resource("/{path:.*}")
                     .route(

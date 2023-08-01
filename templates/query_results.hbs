@@ -1,0 +1,21 @@
+<div class="container">
+  <div>
+    <div class="h2">Query results</div>
+  </div>
+  <hr />
+  <table class="table table-striped">
+    <thead class="table-light">
+      <tr>
+        <th scope="col" style="width:5%;min-width:40px"></th>
+        <th scope="col">File name</th>
+        <th scope="col" style="width:20%;min-width:132px">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      
+      {{#each files}}
+      {{> files_row file=this}}
+      {{/each}}
+    </tbody>
+  </table>
+</div>
