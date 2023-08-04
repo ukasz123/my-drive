@@ -1,81 +1,26 @@
-use std::{path::PathBuf, fs};
+use std::{fs, path::PathBuf};
 
-use actix_web::{web, App, Either, HttpRequest, HttpResponse, HttpServer, Responder};
+use actix_web::{dev::Service, web, App, Either, HttpRequest, HttpResponse, HttpServer, Responder, middleware::DefaultHeaders};
 use anyhow::Result;
+use drive_access::FilesResult;
 use glob::glob;
-use handlebars::{handlebars_helper, Handlebars};
+use handlebars::Handlebars;
 use serde_json::json;
 use tracing::debug;
 
-#[derive(Debug, serde::Serialize)]
-struct FileType {
-    pub mime: String,
-    pub f_type: String,
-}
+mod drive_access;
+mod handlebars_utils;
+mod server;
+mod validators;
 
-impl Default for FileType {
-    fn default() -> Self {
-        Self {
-            mime: "application/octet-stream".to_owned(),
-            f_type: "unknown".to_owned(),
-        }
-    }
-}
-
-impl TryFrom<&std::path::Path> for FileType {
-    type Error = anyhow::Error;
-    fn try_from(value: &std::path::Path) -> Result<FileType> {
-        let info = file_format::FileFormat::from_file(value);
-        let info = info?;
-        Ok(FileType {
-            mime: info.media_type().to_owned(),
-            f_type: match info.kind() {
-                file_format::Kind::Application | file_format::Kind::Executable => "app",
-                file_format::Kind::Archive
-                | file_format::Kind::Compression
-                | file_format::Kind::Disk
-                | file_format::Kind::Package
-                | file_format::Kind::Rom => "archive",
-                file_format::Kind::Audio => "audio",
-                file_format::Kind::Certificate
-                | file_format::Kind::Document
-                | file_format::Kind::Geospatial
-                | file_format::Kind::Model => "document",
-                file_format::Kind::Font => "font",
-                file_format::Kind::Image => "image",
-                file_format::Kind::Book
-                | file_format::Kind::Subtitle
-                | file_format::Kind::Syndication
-                | file_format::Kind::Text => "txt",
-                file_format::Kind::Playlist | file_format::Kind::Video => "video",
-            }
-            .to_owned(),
-        })
-    }
-}
-
-#[derive(Debug, serde::Serialize)]
-struct FileInfo {
-    pub name: String,
-    pub is_dir: bool,
-    pub file_type: Option<FileType>,
-}
-
-#[derive(Debug, serde::Serialize)]
-struct FilesResult {
-    pub files: Vec<FileInfo>,
-    pub path: String,
-    pub parent: Option<String>,
-}
-
-// #[actix_web::get("/")]
 async fn index(
     hb: web::Data<Handlebars<'_>>,
     base_dir: web::Data<PathBuf>,
-    req: HttpRequest,
+    path: web::ReqData<server::RequestedPath>,
 ) -> impl Responder {
-    let data = handle_list_files_request(&base_dir, &req).await;
-    // debug!("files_listing: {:?}", data);
+    let path = path.into_inner().into_inner();
+    let data = handle_list_files_request(&path, &base_dir).await;
+    debug!("files_listing: {:?}", data);
     match data {
         Ok(data) => match data {
             Either::Left(data) => {
@@ -91,9 +36,10 @@ async fn index(
 async fn folder_contents(
     hb: web::Data<Handlebars<'_>>,
     base_dir: web::Data<PathBuf>,
-    req: HttpRequest,
+    path: web::ReqData<server::RequestedPath>,
 ) -> impl Responder {
-    let data = handle_list_files_request(&base_dir, &req).await;
+    let path = path.into_inner().into_inner();
+    let data = handle_list_files_request(&path, &base_dir).await;
     match data {
         Ok(data) => match data {
             Either::Left(data) => {
@@ -116,60 +62,20 @@ enum FileListInputError {
 }
 
 async fn handle_list_files_request(
-    base_dir: &web::Data<PathBuf>,
-    req: &HttpRequest,
+    path: &PathBuf,
+    base_dir: &PathBuf,
 ) -> Result<Either<FilesResult, HttpResponse>> {
-    let path: PathBuf = req.match_info().query("path").parse().unwrap();
-    let path = &base_dir.join(path).to_path_buf();
-    if !path.starts_with(base_dir.as_path()) {
-        return Err(FileListInputError::InvalidPath(path.to_path_buf()).into());
-    }
     if path.is_file() {
         let file_type = FileType::try_from(path.as_path())?;
-        return Ok(Either::Right(HttpResponse::Ok().content_type(file_type.mime).body(fs::read(path)?)))
+        return Ok(Either::Right(
+            HttpResponse::Ok()
+                .content_type(file_type.mime)
+                .body(fs::read(path)?),
+        ));
     }
-    let data = list_files(path, &base_dir).await?;
+    let data = drive_access::list_files(&path, &base_dir).await?;
     debug!("files_listing: {:?}", data);
     Ok(Either::Left(data))
-}
-
-async fn list_files(dir: &PathBuf, base_dir: &PathBuf) -> Result<FilesResult> {
-    let files = dir
-        .read_dir()?
-        .filter_map(|f| {
-            f.ok().map(|f| {
-                let is_dir = f.file_type().map(|t| t.is_dir()).unwrap_or(false);
-                FileInfo {
-                    name: f.file_name().into_string().unwrap(),
-                    is_dir: is_dir,
-                    file_type: if is_dir {
-                        None
-                    } else {
-                        Some((f.path().as_path()).try_into().unwrap_or_default())
-                    },
-                }
-            })
-        })
-        .filter(|f| !f.name.starts_with(".")) // ignore hidden files
-        .collect::<Vec<_>>();
-
-    Ok(FilesResult {
-        files,
-        path: relative_path(dir, base_dir)?,
-        parent: dir
-            .parent()
-            .into_iter()
-            .filter_map(|p| relative_path(&p.to_path_buf(), base_dir).ok())
-            .next(),
-    })
-}
-
-fn relative_path(path: &PathBuf, base_dir: &PathBuf) -> Result<String> {
-    let path = path.strip_prefix(base_dir)?.as_os_str().to_str().unwrap();
-    if path.is_empty() {
-        return Ok("".to_owned());
-    }
-    Ok(format!("/{}", path))
 }
 
 #[derive(serde::Deserialize)]
@@ -217,6 +123,53 @@ async fn query_files(
     }
 }
 
+use actix_multipart::Multipart;
+
+use crate::drive_access::{FileType, FileInfo};
+
+#[derive(Debug, actix_multipart::form::MultipartForm)]
+struct UploadForm {
+    #[multipart(rename = "file")]
+    files: Vec<actix_multipart::form::tempfile::TempFile>,
+}
+
+async fn upload_file(
+    hb: web::Data<Handlebars<'_>>,
+    base_dir: web::Data<PathBuf>,
+    form: actix_multipart::form::MultipartForm<UploadForm>,
+    req: HttpRequest,
+) -> impl Responder {
+    let path: PathBuf = req.match_info().query("path").parse().unwrap();
+    let dir_path = base_dir.join(path).to_path_buf();
+    let files = form.into_inner().files;
+    let results = files
+        .into_iter()
+        .filter(|file| file.file_name.is_some())
+        .map(|file| {
+            let name = file.file_name.unwrap();
+            let path = dir_path.join(&name);
+            (name, file.file.persist(path))
+        });
+    let summary = results
+        .map(|(name, r)| match r {
+            Ok(_) => {
+                format!("{} file saved", name)
+            }
+            Err(e) => {
+                format!("{} file failed to save: {}", name, e)
+            }
+        })
+        .collect::<String>();
+    let data = drive_access::list_files(&dir_path, &base_dir).await;
+    match data {
+        Ok(data) => {
+            let body = hb.render("files_listing", &data).unwrap();
+            HttpResponse::Ok().body(format!("{}/n{}", body, summary))
+        }
+        Err(_) => HttpResponse::InternalServerError().finish(),
+    }
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     dotenv::dotenv().ok();
@@ -227,14 +180,7 @@ async fn main() -> std::io::Result<()> {
     // shared between the application threads, and is therefore passed to the
     // Application Builder as an atomic reference-counted pointer.
 
-    let mut handlebars = Handlebars::new();
-    handlebars.set_dev_mode(true);
-    handlebars.register_helper("is-some-string", Box::new(is_some_string));
-    handlebars.register_decorator("switch", Box::new(switch));
-    handlebars.register_helper("case", Box::new(case));
-    handlebars
-        .register_templates_directory(".hbs", "./templates")
-        .unwrap();
+    let handlebars = handlebars_utils::prepare();
     let handlebars_ref = web::Data::new(handlebars);
 
     let base_dir = PathBuf::from(dotenv::var("BASE_DIR").unwrap());
@@ -248,12 +194,18 @@ async fn main() -> std::io::Result<()> {
             .service(query_files)
             .service(
                 web::resource("/{path:.*}")
+                    .wrap(crate::server::RequestPath)
+                    .app_data(
+                        actix_multipart::form::MultipartFormConfig::default()
+                            .total_limit(1024 * 1024 * 128),
+                    )
                     .route(
                         web::get()
                             .guard(actix_web::guard::Header("HX-Request", "true"))
                             .to(folder_contents),
                     )
-                    .route(web::get().to(index)),
+                    .route(web::get().to(index))
+                    .route(web::put().to(upload_file)),
             )
     })
     .bind((
@@ -265,78 +217,4 @@ async fn main() -> std::io::Result<()> {
     ))?
     .run()
     .await
-}
-
-handlebars::handlebars_helper!(is_some_string: |option: Option<String>| option.is_some() );
-
-use handlebars::*;
-fn switch<'reg: 'rc, 'rc>(
-    d: &Decorator,
-    _: &Handlebars,
-    ctx: &Context,
-    rc: &mut RenderContext,
-) -> Result<(), RenderError> {
-    let switch_param = d
-        .param(0)
-        .ok_or(RenderError::new("switch param not found"))?;
-    // modify json object
-    let mut new_ctx = ctx.clone();
-    {
-        let new_value = switch_param.value().clone();
-        println!("new_value: {:?}", new_value);
-        let data = new_ctx.data_mut();
-        if let Some(ref mut m) = data.as_object_mut() {
-            m.insert("my-drive-switch".to_string(), new_value);
-        }
-    }
-    rc.set_context(new_ctx);
-    Ok(())
-}
-
-fn case<'reg, 'rc>(
-    h: &Helper<'reg, 'rc>,
-    r: &'reg Handlebars<'reg>,
-    ctx: &'rc Context,
-    rc: &mut RenderContext<'reg, 'rc>,
-    out: &mut dyn Output,
-) -> HelperResult {
-    let actual = ctx.data();
-    let expected = h.param(0).unwrap().value();
-    debug!("case: {:?} == {:?}", actual, expected);
-    if expected == actual {
-        h.template()
-            .map(|t| {
-                let v = h.param(0).unwrap().value();
-                rc.set_context(Context::from(v.clone()));
-                t.render(r, ctx, rc, out)
-            })
-            .unwrap_or(Ok(()))
-    } else {
-        Ok(())
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use handlebars::Handlebars;
-
-    #[test]
-    fn test_handlebars_case() {
-        let mut handlebars = Handlebars::new();
-        handlebars.register_decorator("switch", Box::new(super::switch));
-        handlebars.register_helper("case", Box::new(super::case));
-        let template = "{{#*switch test}}>{{my-drive-switch}}<{{#if (eq my-drive-switch 1)}}one{{/if}}{{#if (eq my-drive-switch 2)}}2{{/if}}{{#case 2}}two{{/case}}{{#case 3}}three{{/case}}{{/switch}}";
-        assert_eq!(
-            handlebars
-                .render_template(template, &serde_json::json!({"test":1}))
-                .unwrap(),
-            "one".to_owned()
-        );
-        assert_eq!(
-            handlebars
-                .render_template(template, &serde_json::json!({"test":2}))
-                .unwrap(),
-            "two".to_owned()
-        );
-    }
 }

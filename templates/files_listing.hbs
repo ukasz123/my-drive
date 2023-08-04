@@ -1,8 +1,16 @@
+<form hx-put="{{path}}" hx-encoding="multipart/form-data" hx-target="#file-listing">
 <div class="container">
   <div>
     <div class="h2">Current directory: {{path}}</div>
   </div>
   <hr />
+  <div>
+    <div class="h3">Upload file</div>
+    <div class="input-group mb-3">
+      <input type="file" class="form-control" id="file" name="file" />
+      <button class="btn btn-primary" type="submit">Upload</button>
+    </div>
+  </div>
   <table class="table table-striped">
     <thead class="table-light">
       <tr>
@@ -27,3 +35,4 @@
     </tbody>
   </table>
 </div>
+</form>
