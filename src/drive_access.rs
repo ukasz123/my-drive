@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use actix_multipart::form::tempfile::TempFile;
 use anyhow::{Context, Result, Ok};
 
 #[derive(Debug, serde::Serialize)]
@@ -128,4 +129,16 @@ pub(crate) fn query_files(query: &str, base_dir: &PathBuf) -> Result<Vec<FileInf
         .filter(|f| !f.name.starts_with(".")) // ignore hidden files
         .collect::<Vec<_>>();
     Ok(files)
+}
+
+pub(crate) fn save_files(files: Vec<TempFile>, dir: &PathBuf) -> impl Iterator<Item = (String, Result<std::fs::File>)> +'_ {
+    files
+        .into_iter()
+        .filter(|file| file.file_name.is_some())
+        .map(|file| {
+            let name = file.file_name.unwrap();
+            let path = dir.join(&name);
+            let persist_result = file.file.persist(path).context("Persisting file");
+            (name, persist_result)
+        })
 }

@@ -123,14 +123,7 @@ async fn upload_file(
     let path = path.as_ref();
     let dir_path = base_dir.join(path).to_path_buf();
     let files = form.into_inner().files;
-    let results = files
-        .into_iter()
-        .filter(|file| file.file_name.is_some())
-        .map(|file| {
-            let name = file.file_name.unwrap();
-            let path = dir_path.join(&name);
-            (name, file.file.persist(path))
-        });
+    let results = drive_access::save_files(files, &dir_path);
     let summary = results
         .map(|(name, r)| match r {
             Ok(_) => {
