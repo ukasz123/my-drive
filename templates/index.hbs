@@ -43,6 +43,7 @@
   </div>
   <script>
     htmx.onLoad(function (target) {
+      // error feedback
       const toastLiveExample = document.getElementById('errorToast');
       const toastBootstrap = bootstrap.Toast.getOrCreateInstance(toastLiveExample);
       document.body.addEventListener('htmx:responseError', function (evt) {
@@ -52,7 +53,7 @@
         toastBootstrap.show();
       });
 
-
+      // confirmation/summary feedback
       document.body.addEventListener('htmx:oobAfterSwap', function (evt) {
         
         if (evt.detail.target.id === 'confirmationToast') {

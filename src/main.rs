@@ -5,7 +5,6 @@ use anyhow::{Context, Result};
 use drive_access::FilesResult;
 use handlebars::Handlebars;
 use serde_json::json;
-use tracing::debug;
 
 mod drive_access;
 mod handlebars_utils;
@@ -18,7 +17,6 @@ async fn index(
 ) -> impl Responder {
     let path = path.into_inner().into();
     let data = handle_list_files_request(&path, &base_dir).await;
-    debug!("files_listing: {:?}", data);
     match data {
         Ok(data) => match data {
             Either::Left(data) => {
@@ -103,8 +101,6 @@ async fn query_files(
     }
 }
 
-use actix_multipart::Multipart;
-
 use crate::drive_access::FileType;
 
 #[derive(Debug, actix_multipart::form::MultipartForm)]
@@ -148,6 +144,38 @@ async fn upload_file(
     }
 }
 
+async fn delete_file(
+    hb: web::Data<Handlebars<'_>>,
+    base_dir: web::Data<PathBuf>,
+    path: web::ReqData<server::RequestedPath>,
+) -> impl Responder {
+    let path = path.as_ref();
+    let dir_path = base_dir.join(path).to_path_buf();
+    let data = drive_access::delete_file(&dir_path);
+    match data {
+        Ok(_) => {
+            let data =
+                drive_access::list_files(&dir_path.parent().unwrap().to_path_buf(), &base_dir)
+                    .await;
+            match data {
+                Ok(data) => {
+                    let body = hb.render("files_listing", &data).unwrap();
+                    let confirmation_toast = hb
+                        .render("confirmation_toast", &json!({ "message": "File deleted" }))
+                        .unwrap();
+                    HttpResponse::Ok().body(format!("{}{}", body, confirmation_toast))
+                }
+                Err(_) => HttpResponse::InternalServerError()
+                    .reason("Failed to fetch files")
+                    .finish(),
+            }
+        }
+        Err(_) => HttpResponse::InternalServerError()
+            .reason("Failed to delete file")
+            .finish(),
+    }
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     dotenv::dotenv().ok();
@@ -183,7 +211,8 @@ async fn main() -> std::io::Result<()> {
                             .to(folder_contents),
                     )
                     .route(web::get().to(index))
-                    .route(web::put().to(upload_file)),
+                    .route(web::put().to(upload_file))
+                    .route(web::delete().to(delete_file)),
             )
     })
     .bind((

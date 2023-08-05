@@ -142,3 +142,7 @@ pub(crate) fn save_files(files: Vec<TempFile>, dir: &PathBuf) -> impl Iterator<I
             (name, persist_result)
         })
 }
+
+pub(crate) fn delete_file(path: &PathBuf) -> Result<()> {
+    std::fs::remove_file(path).context(format!("Deleting {:?}", path))
+}
