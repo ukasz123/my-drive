@@ -1,12 +1,8 @@
 use std::{fs, path::PathBuf};
 
-use actix_web::{
-    dev::Service, middleware::DefaultHeaders, web, App, Either, HttpRequest, HttpResponse,
-    HttpServer, Responder,
-};
+use actix_web::{web, App, Either, HttpResponse, HttpServer, Responder};
 use anyhow::{Context, Result};
 use drive_access::FilesResult;
-use glob::glob;
 use handlebars::Handlebars;
 use serde_json::json;
 use tracing::debug;
@@ -31,7 +27,10 @@ async fn index(
             }
             Either::Right(resp) => resp,
         },
-        Err(_) => HttpResponse::InternalServerError().finish(),
+        Err(anyhow_err) => match anyhow_err.downcast_ref::<FileListInputError>() {
+            Some(err) => HttpResponse::BadRequest().body(err.to_string()),
+            None => HttpResponse::NotFound().finish(),
+        },
     }
 }
 
@@ -52,7 +51,7 @@ async fn folder_contents(
         },
         Err(anyhow_err) => match anyhow_err.downcast_ref::<FileListInputError>() {
             Some(err) => HttpResponse::BadRequest().body(err.to_string()),
-            None => HttpResponse::InternalServerError().finish(),
+            None => HttpResponse::NotFound().finish(),
         },
     }
 }
