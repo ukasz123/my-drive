@@ -84,8 +84,8 @@ impl Into<PathBuf> for RequestedPath {
     }
 }
 
-impl RequestedPath {
-    pub(crate) fn into_inner(self) -> PathBuf {
-        self.0
+impl AsRef<PathBuf> for RequestedPath {
+    fn as_ref(&self) -> &PathBuf {
+        &self.0
     }
 }

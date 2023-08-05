@@ -14,43 +14,57 @@
       <h1 class="navbar-brand">My Drive</h1>
       <div id="navbarSupportedContent">
         <form class="d-flex" role="search" hx-post="/" hx-target="#file-listing">
-          <input id="query" name="query" class="form-control me-2" type="search" placeholder="Search" aria-label="Search" />
+          <input id="query" name="query" class="form-control me-2" type="search" placeholder="Search"
+            aria-label="Search" />
           <button class="btn btn-outline-success" type="submit">Search</button>
         </form>
       </div>
     </div>
   </nav>
-  <div  id="file-listing">
-  {{> files_listing this}}
+  <div id="file-listing">
+    {{> files_listing this}}
   </div>
 
   <script src="/static/js/bootstrap.bundle.min.js"></script>
   <script src="/static/js/htmx.min.js"></script>
 
-  <!-- error feedback -->
-  <div class="toast-container position-fixed bottom-0 end-0 p-3">
-    <div id="liveToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+  <!-- feedback -->
+  <div class="toast-container position-fixed bottom-0 start-0 p-3">
+    <div id="errorToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
       <div class="toast-header">
-        <strong class="status-code"></strong>
-        <small class="status-text"></small>
+        <strong class="status-code" style="flex-basis: 10%;"></strong>
+        <small class="status-text" style="flex-basis: 90%;"></small>
         <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
       </div>
-      <div class="toast-body">
-        
-      </div>
+      <div class="toast-body"></div>
     </div>
+
+    <div id="confirmationToast"></div>
   </div>
   <script>
     htmx.onLoad(function (target) {
-      const toastLiveExample = document.getElementById('liveToast');
-
-
+      const toastLiveExample = document.getElementById('errorToast');
       const toastBootstrap = bootstrap.Toast.getOrCreateInstance(toastLiveExample);
       document.body.addEventListener('htmx:responseError', function (evt) {
         toastLiveExample.querySelector('.toast-body').innerText = evt.detail.xhr.response ?? 'Unknown error';
         toastLiveExample.querySelector('.status-code').innerText = evt.detail.xhr.status;
         toastLiveExample.querySelector('.status-text').innerText = evt.detail.xhr.statusText;
         toastBootstrap.show();
+      });
+
+
+      document.body.addEventListener('htmx:oobAfterSwap', function (evt) {
+        
+        if (evt.detail.target.id === 'confirmationToast') {
+          const confirmationToastContainer = document.getElementById('confirmationToast');
+          const confirmationToast = confirmationToastContainer.querySelector('.toast');
+          const toastConfirmation = bootstrap.Toast.getOrCreateInstance(confirmationToast);
+          toastConfirmation.show();
+
+          setTimeout(function () {
+            toastConfirmation.hide();
+          }, 4000);
+        }
       });
 
     });

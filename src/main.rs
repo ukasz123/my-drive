@@ -1,7 +1,10 @@
 use std::{fs, path::PathBuf};
 
-use actix_web::{dev::Service, web, App, Either, HttpRequest, HttpResponse, HttpServer, Responder, middleware::DefaultHeaders};
-use anyhow::Result;
+use actix_web::{
+    dev::Service, middleware::DefaultHeaders, web, App, Either, HttpRequest, HttpResponse,
+    HttpServer, Responder,
+};
+use anyhow::{Context, Result};
 use drive_access::FilesResult;
 use glob::glob;
 use handlebars::Handlebars;
@@ -11,14 +14,13 @@ use tracing::debug;
 mod drive_access;
 mod handlebars_utils;
 mod server;
-mod validators;
 
 async fn index(
     hb: web::Data<Handlebars<'_>>,
     base_dir: web::Data<PathBuf>,
     path: web::ReqData<server::RequestedPath>,
 ) -> impl Responder {
-    let path = path.into_inner().into_inner();
+    let path = path.into_inner().into();
     let data = handle_list_files_request(&path, &base_dir).await;
     debug!("files_listing: {:?}", data);
     match data {
@@ -38,7 +40,7 @@ async fn folder_contents(
     base_dir: web::Data<PathBuf>,
     path: web::ReqData<server::RequestedPath>,
 ) -> impl Responder {
-    let path = path.into_inner().into_inner();
+    let path = path.into_inner().into();
     let data = handle_list_files_request(&path, &base_dir).await;
     match data {
         Ok(data) => match data {
@@ -70,11 +72,10 @@ async fn handle_list_files_request(
         return Ok(Either::Right(
             HttpResponse::Ok()
                 .content_type(file_type.mime)
-                .body(fs::read(path)?),
+                .body(fs::read(path).context("Could not read from file")?),
         ));
     }
     let data = drive_access::list_files(&path, &base_dir).await?;
-    debug!("files_listing: {:?}", data);
     Ok(Either::Left(data))
 }
 
@@ -105,7 +106,7 @@ async fn query_files(
 
 use actix_multipart::Multipart;
 
-use crate::drive_access::{FileType, FileInfo};
+use crate::drive_access::FileType;
 
 #[derive(Debug, actix_multipart::form::MultipartForm)]
 struct UploadForm {
@@ -117,9 +118,9 @@ async fn upload_file(
     hb: web::Data<Handlebars<'_>>,
     base_dir: web::Data<PathBuf>,
     form: actix_multipart::form::MultipartForm<UploadForm>,
-    req: HttpRequest,
+    path: web::ReqData<server::RequestedPath>,
 ) -> impl Responder {
-    let path: PathBuf = req.match_info().query("path").parse().unwrap();
+    let path = path.as_ref();
     let dir_path = base_dir.join(path).to_path_buf();
     let files = form.into_inner().files;
     let results = files
@@ -139,12 +140,17 @@ async fn upload_file(
                 format!("{} file failed to save: {}", name, e)
             }
         })
+        .map(|message| format!("<li>{}</li>", message))
         .collect::<String>();
     let data = drive_access::list_files(&dir_path, &base_dir).await;
     match data {
         Ok(data) => {
             let body = hb.render("files_listing", &data).unwrap();
-            HttpResponse::Ok().body(format!("{}/n{}", body, summary))
+            let summary = format!("<ul>{}</ul>", summary);
+            let confirmation_toast = hb
+                .render("confirmation_toast", &json!({ "message": summary }))
+                .unwrap();
+            HttpResponse::Ok().body(format!("{}{}", body, confirmation_toast))
         }
         Err(_) => HttpResponse::InternalServerError().finish(),
     }
