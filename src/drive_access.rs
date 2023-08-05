@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use anyhow::{Result, Context};
+use anyhow::{Context, Result, Ok};
 
 #[derive(Debug, serde::Serialize)]
 pub(crate) struct FileType {
@@ -65,7 +65,8 @@ pub(crate) struct FilesResult {
 
 pub(crate) async fn list_files(dir: &PathBuf, base_dir: &PathBuf) -> Result<FilesResult> {
     let files = dir
-        .read_dir().context(format!("Reading {:?}", dir))?
+        .read_dir()
+        .context(format!("Reading {:?}", dir))?
         .filter_map(|f| {
             f.ok().map(|f| {
                 let is_dir = f.file_type().map(|t| t.is_dir()).unwrap_or(false);
@@ -100,4 +101,31 @@ fn relative_path(path: &PathBuf, base_dir: &PathBuf) -> Result<String> {
         return Ok("".to_owned());
     }
     Ok(format!("/{}", path))
+}
+
+pub(crate) fn query_files(query: &str, base_dir: &PathBuf) -> Result<Vec<FileInfo>> {
+    use glob::glob;
+    let paths = glob(&format!(
+        "{}/**/{}*",
+        &base_dir.as_os_str().to_str().unwrap(),
+        query
+    ))?;
+
+    let files = paths
+        .filter_map(|p| p.ok())
+        .map(|path| {
+            let is_dir = path.is_dir();
+            FileInfo {
+                name: path.file_name().unwrap().to_str().unwrap().to_owned(),
+                is_dir: is_dir,
+                file_type: if is_dir {
+                    None
+                } else {
+                    Some((path.as_path()).try_into().unwrap_or_default())
+                },
+            }
+        })
+        .filter(|f| !f.name.starts_with(".")) // ignore hidden files
+        .collect::<Vec<_>>();
+    Ok(files)
 }

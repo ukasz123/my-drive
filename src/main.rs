@@ -91,35 +91,15 @@ async fn query_files(
 ) -> impl Responder {
     let query = &request.query;
 
-    let result = glob(&format!(
-        "{}/**/{}*",
-        &base_dir.as_os_str().to_str().unwrap(),
-        query
-    ));
-    match result {
-        Ok(paths) => {
-            let files = paths
-                .filter_map(|p| p.ok())
-                .map(|path| {
-                    let is_dir = path.is_dir();
-                    FileInfo {
-                        name: path.file_name().unwrap().to_str().unwrap().to_owned(),
-                        is_dir: is_dir,
-                        file_type: if is_dir {
-                            None
-                        } else {
-                            Some((path.as_path()).try_into().unwrap_or_default())
-                        },
-                    }
-                })
-                .filter(|f| !f.name.starts_with(".")) // ignore hidden files
-                .collect::<Vec<_>>();
+    let files = drive_access::query_files(query, base_dir.as_ref());
+    match files {
+        Ok(files) => {
             let body = hb
                 .render("query_results", &json!({ "files": files }))
                 .unwrap();
             HttpResponse::Ok().body(body)
         }
-        Err(_) => HttpResponse::InternalServerError().finish(),
+        Err(e) => HttpResponse::InternalServerError().body(format!("Error querying files: {}", e)),
     }
 }
 
