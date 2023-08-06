@@ -146,3 +146,7 @@ pub(crate) fn save_files(files: Vec<TempFile>, dir: &PathBuf) -> impl Iterator<I
 pub(crate) fn delete_file(path: &PathBuf) -> Result<()> {
     std::fs::remove_file(path).context(format!("Deleting {:?}", path))
 }
+
+pub(crate) fn create_dir(new_dir_path: &PathBuf) -> Result<()> {
+    std::fs::create_dir(new_dir_path).context(format!("Creating directory {:?}", new_dir_path))
+}

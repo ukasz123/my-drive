@@ -1,38 +1,65 @@
 <form hx-put="{{path}}" hx-encoding="multipart/form-data" hx-target="#file-listing">
-<div class="container">
-  <div>
-    <div class="h2">Current directory: {{path}}</div>
+  <div class="container">
+    <div>
+      <div class="h2">Current directory: {{path}}</div>
+    </div>
+    <hr />
+    <div class="row">
+      <div class="col-8">
+        <div class="h3">Upload file</div>
+        <div class="input-group mb-3">
+          <input type="file" class="form-control" id="file" name="file" />
+          <button class="btn btn-primary" type="submit">Upload</button>
+        </div>
+      </div>
+      <div class="col-4">
+        <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#newFolderModal"><i
+            class="bi-plus"></i>New folder</button>
+      </div>
+    </div>
+    <table class="table table-striped">
+      <thead class="table-light">
+        <tr>
+          <th scope="col" style="width:5%;min-width:40px"></th>
+          <th scope="col">File name</th>
+          <th scope="col" style="width:20%;min-width:132px">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#if (is-some-string parent)}}
+        <tr class="align-middle" hx-get="{{#if parent}}{{parent}}{{else}}/{{/if}}" hx-target="#file-listing"
+          style="cursor: pointer" hx-push-url="true">
+          <td><i class="bi-arrow-90deg-up"></i></td>
+          <td>..</td>
+          <td></td>
+        </tr>
+
+        {{/if}}
+        {{#each files}}
+        {{> files_row file=this path=../path}}
+        {{/each}}
+      </tbody>
+    </table>
   </div>
-  <hr />
-  <div>
-    <div class="h3">Upload file</div>
-    <div class="input-group mb-3">
-      <input type="file" class="form-control" id="file" name="file" />
-      <button class="btn btn-primary" type="submit">Upload</button>
+</form>
+<!-- New folder modal -->
+<form hx-put="{{path}}" hx-encoding="multipart/form-data" hx-target="#file-listing">
+  <div class="modal fade" id="newFolderModal" tabindex="-1" aria-labelledby="newFolderModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h1 class="modal-title fs-5" id="newFolderModalLabel">New folder</h1>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <input type="text" class="form-control" id="new_folder" name="new_folder" />
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button class="btn btn-primary" data-bs-dismiss="modal" type="submit">Save</button>
+        </div>
+      </div>
     </div>
   </div>
-  <table class="table table-striped">
-    <thead class="table-light">
-      <tr>
-        <th scope="col" style="width:5%;min-width:40px"></th>
-        <th scope="col">File name</th>
-        <th scope="col" style="width:20%;min-width:132px">Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      {{#if (is-some-string parent)}}
-      <tr class="align-middle" hx-get="{{#if parent}}{{parent}}{{else}}/{{/if}}" hx-target="#file-listing"
-        style="cursor: pointer" hx-push-url="true">
-        <td><i class="bi-arrow-90deg-up"></i></td>
-        <td>..</td>
-        <td></td>
-      </tr>
 
-      {{/if}}
-      {{#each files}}
-      {{> files_row file=this path=../path}}
-      {{/each}}
-    </tbody>
-  </table>
-</div>
 </form>
