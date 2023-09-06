@@ -1,5 +1,6 @@
-use std::{fs, path::PathBuf};
+use std::path::PathBuf;
 
+use actix_files::NamedFile;
 use actix_multipart::form::text::Text;
 use actix_web::{web, App, Either, HttpResponse, HttpServer, Responder};
 use anyhow::{Context, Result};
@@ -15,6 +16,7 @@ async fn index(
     hb: web::Data<Handlebars<'_>>,
     base_dir: web::Data<PathBuf>,
     path: web::ReqData<server::RequestedPath>,
+    req: actix_web::HttpRequest,
 ) -> impl Responder {
     let path = path.into_inner().into();
     let data = handle_list_files_request(&path, &base_dir).await;
@@ -24,7 +26,7 @@ async fn index(
                 let body = hb.render("index", &data).unwrap();
                 HttpResponse::Ok().body(body)
             }
-            Either::Right(resp) => resp,
+            Either::Right(resp) => resp.into_response(&req),
         },
         Err(anyhow_err) => match anyhow_err.downcast_ref::<FileListInputError>() {
             Some(err) => HttpResponse::BadRequest().body(err.to_string()),
@@ -37,6 +39,7 @@ async fn folder_contents(
     hb: web::Data<Handlebars<'_>>,
     base_dir: web::Data<PathBuf>,
     path: web::ReqData<server::RequestedPath>,
+    req: actix_web::HttpRequest,
 ) -> impl Responder {
     let path = path.into_inner().into();
     let data = handle_list_files_request(&path, &base_dir).await;
@@ -46,7 +49,7 @@ async fn folder_contents(
                 let body = hb.render("files_listing", &data).unwrap();
                 HttpResponse::Ok().body(body)
             }
-            Either::Right(resp) => resp,
+            Either::Right(resp) => resp.into_response(&req),
         },
         Err(anyhow_err) => match anyhow_err.downcast_ref::<FileListInputError>() {
             Some(err) => HttpResponse::BadRequest().body(err.to_string()),
@@ -64,14 +67,10 @@ enum FileListInputError {
 async fn handle_list_files_request(
     path: &PathBuf,
     base_dir: &PathBuf,
-) -> Result<Either<FilesResult, HttpResponse>> {
+) -> Result<Either<FilesResult, NamedFile>> {
     if path.is_file() {
-        let file_type = FileType::try_from(path.as_path())?;
-        return Ok(Either::Right(
-            HttpResponse::Ok()
-                .content_type(file_type.mime)
-                .body(fs::read(path).context("Could not read from file")?),
-        ));
+        let file = NamedFile::open(path).context("Could not open file")?;
+        return Ok(Either::Right(file));
     }
     let data = drive_access::list_files(&path, &base_dir).await?;
     Ok(Either::Left(data))
@@ -101,8 +100,6 @@ async fn query_files(
         Err(e) => HttpResponse::InternalServerError().body(format!("Error querying files: {}", e)),
     }
 }
-
-use crate::drive_access::FileType;
 
 #[derive(Debug, actix_multipart::form::MultipartForm)]
 struct UploadOrNewDirForm {
