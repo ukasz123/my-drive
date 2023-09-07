@@ -26,3 +26,9 @@ The main goal was to try HTMX with Rust backend.
  `docker buildx build --platform linux/armhf -t mydrive-raspberrypi-cross --load .`
  1. Run cross compilation 
  `RUSTFLAGS='-L /usr/arm-linux-gnueabihf/lib/ -L /usr/lib/arm-linux-gnueabihf/' cross build --release --target=armv7-unknown-linux-gnueabihf`
+
+#### Installation
+ 1. Copy the `target/armv7-unknown-linux-gnueabihf/release/my-drive` to directory on Raspberry Pi.
+ 1. Copy `static` directory to the same directory on Raspberry Pi.
+ 1. Copy `templates` directory to the same directory on Raspberry Pi.
+ 1. Create `.env` file in target directory on Raspberry Pi and put `BASE_DIR=[path to base drive directory]` in (e.g. `echo "BASE_DIR=[path to base drive directory]" > .env`).
