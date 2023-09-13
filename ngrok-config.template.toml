@@ -1,0 +1,10 @@
+# Your Authtoken from https://dashboard.ngrok.com/get-started/your-authtoken 
+authoken = "<ngrok Authtoken"
+# (Optional) Your ngrok domain, if you have one
+# https://dashboard.ngrok.com/cloud-edge/domains
+domain = "<optional ngrok domain>"
+
+# (Optional) OAuth2 configuration for service
+[oauth]
+provider = "google"
+allowed_emails = ["your-email@gmail.com"]

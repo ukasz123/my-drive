@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use actix_multipart::form::tempfile::TempFile;
-use anyhow::{Context, Result, Ok};
+use anyhow::{Context, Ok, Result};
 
 #[derive(Debug, serde::Serialize)]
 pub(crate) struct FileType {
@@ -30,6 +30,7 @@ impl TryFrom<&std::path::Path> for FileType {
                 file_format::Kind::Archive
                 | file_format::Kind::Compression
                 | file_format::Kind::Disk
+                | file_format::Kind::Database 
                 | file_format::Kind::Package
                 | file_format::Kind::Rom => "archive",
                 file_format::Kind::Audio => "audio",
@@ -43,6 +44,7 @@ impl TryFrom<&std::path::Path> for FileType {
                 | file_format::Kind::Subtitle
                 | file_format::Kind::Syndication
                 | file_format::Kind::Text => "txt",
+                
                 file_format::Kind::Playlist | file_format::Kind::Video => "video",
             }
             .to_owned(),
@@ -131,7 +133,10 @@ pub(crate) fn query_files(query: &str, base_dir: &PathBuf) -> Result<Vec<FileInf
     Ok(files)
 }
 
-pub(crate) fn save_files(files: Vec<TempFile>, dir: &PathBuf) -> impl Iterator<Item = (String, Result<std::fs::File>)> +'_ {
+pub(crate) fn save_files(
+    files: Vec<TempFile>,
+    dir: &PathBuf,
+) -> impl Iterator<Item = (String, Result<std::fs::File>)> + '_ {
     files
         .into_iter()
         .filter(|file| file.file_name.is_some())
