@@ -11,7 +11,7 @@ use actix_web::{
 };
 use tracing::debug;
 
-use crate::FileListInputError;
+use crate::webservices::FileListInputError;
 
 pub(crate) struct RequestPath;
 
