@@ -8,6 +8,8 @@ use anyhow::{Context, Result};
 use handlebars::Handlebars;
 use serde_json::json;
 
+mod response_renderer;
+
 async fn index(
     hb: web::Data<Handlebars<'_>>,
     base_dir: web::Data<PathBuf>,
@@ -82,18 +84,26 @@ async fn query_files(
     request: web::Form<QueryFilterRequest>,
     hb: web::Data<Handlebars<'_>>,
     base_dir: web::Data<PathBuf>,
-) -> impl Responder {
+) -> impl Responder + '_ {
     let query = &request.query;
 
     let files = crate::drive_access::query_files(query, base_dir.as_ref());
     match files {
         Ok(files) => {
-            let body = hb
-                .render("query_results", &json!({ "files": files }))
-                .unwrap();
-            HttpResponse::Ok().body(body)
+            // let body = hb
+            //     .render("query_results", &json!({ "files": files }))
+            //     .unwrap();
+            // HttpResponse::Ok().body(body)
+            let response = response_renderer::ResponseRenderer::new(
+                json!({ "files": files }),
+                "query_results",
+                hb.into_inner().clone(),
+            );
+            Either::Left(response)
         }
-        Err(e) => HttpResponse::InternalServerError().body(format!("Error querying files: {}", e)),
+        Err(e) => Either::Right(
+            HttpResponse::InternalServerError().body(format!("Error querying files: {}", e)),
+        ),
     }
 }
 
