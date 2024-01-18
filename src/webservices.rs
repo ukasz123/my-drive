@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use crate::drive_access::FilesResult;
 use actix_files::NamedFile;
 use actix_multipart::form::text::Text;
-use actix_web::{web, App, Either, HttpResponse, HttpServer, Responder};
+use actix_web::{guard, web, App, Either, HttpResponse, HttpServer, Responder};
 use anyhow::{Context, Result};
 use handlebars::Handlebars;
 use serde_json::json;
@@ -90,10 +90,6 @@ async fn query_files(
     let files = crate::drive_access::query_files(query, base_dir.as_ref());
     match files {
         Ok(files) => {
-            // let body = hb
-            //     .render("query_results", &json!({ "files": files }))
-            //     .unwrap();
-            // HttpResponse::Ok().body(body)
             let response = response_renderer::ResponseRenderer::new(
                 json!({ "files": files }),
                 "query_results",
@@ -108,50 +104,30 @@ async fn query_files(
 }
 
 #[derive(Debug, actix_multipart::form::MultipartForm)]
-struct UploadOrNewDirForm {
+struct UploadFile {
     #[multipart(rename = "file")]
     files: Vec<actix_multipart::form::tempfile::TempFile>,
-
-    #[multipart(rename = "new_folder")]
-    new_folder_name: Option<Text<String>>,
 }
 
-async fn upload_file_or_new_dir(
+async fn upload_file(
     hb: web::Data<Handlebars<'_>>,
     base_dir: web::Data<PathBuf>,
-    form: actix_multipart::form::MultipartForm<UploadOrNewDirForm>,
+    form: actix_multipart::form::MultipartForm<UploadFile>,
     path: web::ReqData<crate::server::RequestedPath>,
 ) -> impl Responder {
     let path = path.as_ref();
     let dir_path = base_dir.join(path).to_path_buf();
-    // create new folder
-    if let Some(new_dir_name) = &form.new_folder_name {
-        let new_dir_path = dir_path.join(new_dir_name.as_str());
-        let data = crate::drive_access::create_dir(&new_dir_path);
-        return match data {
-            Ok(_) => {
-                let data = crate::drive_access::list_files(&dir_path, &base_dir).await;
-                match data {
-                    Ok(data) => {
-                        let body = hb.render("files_listing", &data).unwrap();
-                        HttpResponse::Ok().body(body)
-                    }
-                    Err(_) => HttpResponse::InternalServerError().finish(),
-                }
-            }
-            Err(_) => HttpResponse::InternalServerError().finish(),
-        };
-    }
+
     // save new files
     let files = form.into_inner().files;
     let results = crate::drive_access::save_files(files, &dir_path);
     let summary = results
         .map(|(name, r)| match r {
             Ok(_) => {
-                format!("{} file saved", name)
+                format!("File {} saved", name)
             }
             Err(e) => {
-                format!("{} file failed to save: {}", name, e)
+                format!("File {} failed to save: {}", name, e)
             }
         })
         .map(|message| format!("<li>{}</li>", message))
@@ -170,6 +146,40 @@ async fn upload_file_or_new_dir(
     }
 }
 
+#[derive(Debug, actix_multipart::form::MultipartForm)]
+struct NewDirForm {
+    #[multipart(rename = "new_folder")]
+    new_folder_name: Text<String>,
+}
+
+async fn new_dir(
+    hb: web::Data<Handlebars<'_>>,
+    base_dir: web::Data<PathBuf>,
+    form: actix_multipart::form::MultipartForm<NewDirForm>,
+    path: web::ReqData<crate::server::RequestedPath>,
+) -> impl Responder {
+    let path = path.as_ref();
+    let dir_path = base_dir.join(path).to_path_buf();
+    // create new folder
+    let new_dir_name = &form.new_folder_name;
+
+    let new_dir_path = dir_path.join(new_dir_name.as_str());
+    let data = crate::drive_access::create_dir(&new_dir_path);
+    return match data {
+        Ok(_) => {
+            let data = crate::drive_access::list_files(&dir_path, &base_dir).await;
+            match data {
+                Ok(data) => {
+                    let body = hb.render("files_listing", &data).unwrap();
+                    HttpResponse::Ok().body(body)
+                }
+                Err(_) => HttpResponse::InternalServerError().finish(),
+            }
+        }
+        Err(_) => HttpResponse::InternalServerError().finish(),
+    };
+}
+
 async fn delete_file(
     hb: web::Data<Handlebars<'_>>,
     base_dir: web::Data<PathBuf>,
@@ -177,7 +187,7 @@ async fn delete_file(
 ) -> impl Responder {
     let path = path.as_ref();
     let dir_path = base_dir.join(path).to_path_buf();
-    let data = crate::drive_access::delete_file(&dir_path);
+    let data = crate::drive_access::delete_file_or_directory(&dir_path);
     match data {
         Ok(_) => {
             let data = crate::drive_access::list_files(
@@ -237,7 +247,12 @@ pub(crate) async fn start_http_server(
                             .to(folder_contents),
                     )
                     .route(web::get().to(index))
-                    .route(web::put().to(upload_file_or_new_dir))
+                    .route(
+                        web::put()
+                            .guard(guard::Header("command", "new_folder"))
+                            .to(new_dir),
+                    )
+                    .route(web::put().to(upload_file))
                     .route(web::delete().to(delete_file)),
             )
     })

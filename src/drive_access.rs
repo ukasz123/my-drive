@@ -30,7 +30,7 @@ impl TryFrom<&std::path::Path> for FileType {
                 file_format::Kind::Archive
                 | file_format::Kind::Compression
                 | file_format::Kind::Disk
-                | file_format::Kind::Database 
+                | file_format::Kind::Database
                 | file_format::Kind::Package
                 | file_format::Kind::Rom => "archive",
                 file_format::Kind::Audio => "audio",
@@ -44,7 +44,7 @@ impl TryFrom<&std::path::Path> for FileType {
                 | file_format::Kind::Subtitle
                 | file_format::Kind::Syndication
                 | file_format::Kind::Text => "txt",
-                
+
                 file_format::Kind::Playlist | file_format::Kind::Video => "video",
             }
             .to_owned(),
@@ -148,8 +148,12 @@ pub(crate) fn save_files(
         })
 }
 
-pub(crate) fn delete_file(path: &PathBuf) -> Result<()> {
-    std::fs::remove_file(path).context(format!("Deleting {:?}", path))
+pub(crate) fn delete_file_or_directory(path: &PathBuf) -> Result<()> {
+    if path.is_dir() {
+        std::fs::remove_dir_all(path).context(format!("Deleting directory {:?}", path))
+    } else {
+        std::fs::remove_file(path).context(format!("Deleting file {:?}", path))
+    }
 }
 
 pub(crate) fn create_dir(new_dir_path: &PathBuf) -> Result<()> {
