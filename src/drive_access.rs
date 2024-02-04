@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use actix_multipart::form::tempfile::TempFile;
 use anyhow::{Context, Ok, Result};
@@ -75,7 +75,7 @@ pub(crate) async fn list_files(dir: &PathBuf, base_dir: &PathBuf) -> Result<File
                 let is_dir = f.file_type().map(|t| t.is_dir()).unwrap_or(false);
                 FileInfo {
                     name: f.file_name().into_string().unwrap(),
-                    is_dir: is_dir,
+                    is_dir,
                     file_type: if is_dir {
                         None
                     } else {
@@ -84,7 +84,7 @@ pub(crate) async fn list_files(dir: &PathBuf, base_dir: &PathBuf) -> Result<File
                 }
             })
         })
-        .filter(|f| !f.name.starts_with(".")) // ignore hidden files
+        .filter(|f| !f.name.starts_with('.')) // ignore hidden files
         .collect::<Vec<_>>();
 
     Ok(FilesResult {
@@ -98,7 +98,7 @@ pub(crate) async fn list_files(dir: &PathBuf, base_dir: &PathBuf) -> Result<File
     })
 }
 
-fn relative_path(path: &PathBuf, base_dir: &PathBuf) -> Result<String> {
+fn relative_path(path: &Path, base_dir: &PathBuf) -> Result<String> {
     let path = path.strip_prefix(base_dir)?.as_os_str().to_str().unwrap();
     if path.is_empty() {
         return Ok("".to_owned());
@@ -106,7 +106,7 @@ fn relative_path(path: &PathBuf, base_dir: &PathBuf) -> Result<String> {
     Ok(format!("/{}", path))
 }
 
-pub(crate) fn query_files(query: &str, base_dir: &PathBuf) -> Result<Vec<FileInfo>> {
+pub(crate) fn query_files(query: &str, base_dir: &Path) -> Result<Vec<FileInfo>> {
     use glob::glob;
     let paths = glob(&format!(
         "{}/**/{}*",
@@ -120,7 +120,7 @@ pub(crate) fn query_files(query: &str, base_dir: &PathBuf) -> Result<Vec<FileInf
             let is_dir = path.is_dir();
             FileInfo {
                 name: path.file_name().unwrap().to_str().unwrap().to_owned(),
-                is_dir: is_dir,
+                is_dir,
                 file_type: if is_dir {
                     None
                 } else {
@@ -128,14 +128,14 @@ pub(crate) fn query_files(query: &str, base_dir: &PathBuf) -> Result<Vec<FileInf
                 },
             }
         })
-        .filter(|f| !f.name.starts_with(".")) // ignore hidden files
+        .filter(|f| !f.name.starts_with('.')) // ignore hidden files
         .collect::<Vec<_>>();
     Ok(files)
 }
 
 pub(crate) fn save_files(
     files: Vec<TempFile>,
-    dir: &PathBuf,
+    dir: &Path,
 ) -> impl Iterator<Item = (String, Result<std::fs::File>)> + '_ {
     files
         .into_iter()

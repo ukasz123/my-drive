@@ -24,7 +24,7 @@ where
         actix_web::body::EitherBody<actix_web::body::BoxBody, actix_web::body::EitherBody<String>>;
 
     fn respond_to(self, req: &actix_web::HttpRequest) -> actix_web::HttpResponse<Self::Body> {
-        let body = if let Some(_) = req.headers().get("HX-Request") {
+        let body = if req.headers().get("HX-Request").is_some() {
             let body = self.hb.render(self.template, &self.data).unwrap();
             actix_web::Either::Left(actix_web::HttpResponse::Ok()
             .insert_header(header::ContentType::html())

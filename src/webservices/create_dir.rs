@@ -23,7 +23,7 @@ pub(super) async fn handle(
 
     let new_dir_path = dir_path.join(new_dir_name.as_str());
     let data = crate::drive_access::create_dir(&new_dir_path);
-    return match data {
+    match data {
         Ok(_) => {
             let data = crate::drive_access::list_files(&dir_path, &base_dir).await;
             match data {
@@ -35,5 +35,5 @@ pub(super) async fn handle(
             }
         }
         Err(_) => HttpResponse::InternalServerError().finish(),
-    };
+    }
 }

@@ -78,9 +78,9 @@ where
 #[derive(Debug, Clone)]
 pub(crate) struct RequestedPath(PathBuf);
 
-impl Into<PathBuf> for RequestedPath {
-    fn into(self) -> PathBuf {
-        self.0
+impl From<RequestedPath> for PathBuf {
+    fn from(val: RequestedPath) -> Self {
+        val.0
     }
 }
 
