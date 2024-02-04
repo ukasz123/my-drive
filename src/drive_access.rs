@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 
 use actix_multipart::form::tempfile::TempFile;
 use anyhow::{Context, Ok, Result};
+use glob::MatchOptions;
 
 #[derive(Debug, serde::Serialize)]
 pub(crate) struct FileType {
@@ -135,12 +136,15 @@ fn relative_path(path: &Path, base_dir: &PathBuf) -> Result<String> {
 }
 
 pub(crate) fn query_files(query: &str, base_dir: &Path) -> Result<Vec<FileInfo>> {
-    use glob::glob;
-    let paths = glob(&format!(
+    use glob::glob_with;
+    let paths = glob_with(&format!(
         "{}/**/{}*",
         &base_dir.as_os_str().to_str().unwrap(),
         query
-    ))?;
+    ), MatchOptions {
+        case_sensitive: false,
+        ..Default::default()
+    })?;
 
     let mut files = paths
         .filter_map(|p| p.ok())
