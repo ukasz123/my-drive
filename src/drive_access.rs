@@ -59,6 +59,31 @@ pub(crate) struct FileInfo {
     pub file_type: Option<FileType>,
 }
 
+impl PartialEq for FileInfo {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name && self.is_dir == other.is_dir
+    }
+}
+
+impl Eq for FileInfo {}
+
+impl PartialOrd for FileInfo {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match self.is_dir.partial_cmp(&other.is_dir) {
+            Some(core::cmp::Ordering::Equal) => self.name.partial_cmp(&other.name),
+            ord => return ord,
+        }
+    }
+}
+impl Ord for FileInfo {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match self.is_dir.cmp(&other.is_dir) {
+            std::cmp::Ordering::Equal => self.name.cmp(&other.name),
+            ord => ord,
+        }
+    }
+}
+
 #[derive(Debug, serde::Serialize)]
 pub(crate) struct FilesResult {
     pub files: Vec<FileInfo>,
@@ -67,7 +92,7 @@ pub(crate) struct FilesResult {
 }
 
 pub(crate) async fn list_files(dir: &PathBuf, base_dir: &PathBuf) -> Result<FilesResult> {
-    let files = dir
+    let mut files = dir
         .read_dir()
         .context(format!("Reading {:?}", dir))?
         .filter_map(|f| {
@@ -86,6 +111,9 @@ pub(crate) async fn list_files(dir: &PathBuf, base_dir: &PathBuf) -> Result<File
         })
         .filter(|f| !f.name.starts_with('.')) // ignore hidden files
         .collect::<Vec<_>>();
+
+    files.sort();
+    files.reverse();
 
     Ok(FilesResult {
         files,
@@ -114,7 +142,7 @@ pub(crate) fn query_files(query: &str, base_dir: &Path) -> Result<Vec<FileInfo>>
         query
     ))?;
 
-    let files = paths
+    let mut files = paths
         .filter_map(|p| p.ok())
         .map(|path| {
             let is_dir = path.is_dir();
@@ -130,6 +158,8 @@ pub(crate) fn query_files(query: &str, base_dir: &Path) -> Result<Vec<FileInfo>>
         })
         .filter(|f| !f.name.starts_with('.')) // ignore hidden files
         .collect::<Vec<_>>();
+    files.sort();
+    files.reverse();
     Ok(files)
 }
 
