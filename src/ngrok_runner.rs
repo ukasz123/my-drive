@@ -76,6 +76,6 @@ async fn start_ngrok(local_address: &(&str, u16)) -> anyhow::Result<()> {
     }
 
     let mut tun = tun_builder.listen().await?;
-    info!("Tunnel started on URL: {:?}", tun.url());
+    info!("Tunnel to {local_address:?} started on URL: {:?}", tun.url());
     Ok(tun.forward_tcp(local_address).await?)
 }
