@@ -1,217 +1,20 @@
 use std::path::PathBuf;
 
-use crate::drive_access::FilesResult;
-use actix_files::NamedFile;
-use actix_multipart::form::text::Text;
-use actix_web::{guard, web, App, Either, HttpResponse, HttpServer, Responder};
-use anyhow::{Context, Result};
-use handlebars::Handlebars;
-use serde_json::json;
+use actix_web::{guard, web, App, HttpServer};
 
+mod create_dir;
+mod delete_file;
+mod folder_contents;
+mod index;
+mod list_files;
+mod query_files;
 mod response_renderer;
-
-async fn index(
-    hb: web::Data<Handlebars<'_>>,
-    base_dir: web::Data<PathBuf>,
-    path: web::ReqData<crate::server::RequestedPath>,
-    req: actix_web::HttpRequest,
-) -> impl Responder {
-    let path = path.into_inner().into();
-    let data = handle_list_files_request(&path, &base_dir).await;
-    match data {
-        Ok(data) => match data {
-            Either::Left(data) => {
-                let body = hb.render("index", &data).unwrap();
-                HttpResponse::Ok().body(body)
-            }
-            Either::Right(resp) => resp.into_response(&req),
-        },
-        Err(anyhow_err) => match anyhow_err.downcast_ref::<FileListInputError>() {
-            Some(err) => HttpResponse::BadRequest().body(err.to_string()),
-            None => HttpResponse::NotFound().finish(),
-        },
-    }
-}
-
-async fn folder_contents(
-    hb: web::Data<Handlebars<'_>>,
-    base_dir: web::Data<PathBuf>,
-    path: web::ReqData<crate::server::RequestedPath>,
-    req: actix_web::HttpRequest,
-) -> impl Responder {
-    let path = path.into_inner().into();
-    let data = handle_list_files_request(&path, &base_dir).await;
-    match data {
-        Ok(data) => match data {
-            Either::Left(data) => {
-                let body = hb.render("files_listing", &data).unwrap();
-                HttpResponse::Ok().body(body)
-            }
-            Either::Right(resp) => resp.into_response(&req),
-        },
-        Err(anyhow_err) => match anyhow_err.downcast_ref::<FileListInputError>() {
-            Some(err) => HttpResponse::BadRequest().body(err.to_string()),
-            None => HttpResponse::NotFound().finish(),
-        },
-    }
-}
+mod upload_file;
 
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum FileListInputError {
     #[error("Invalid path: {0:?}")]
     InvalidPath(PathBuf),
-}
-
-async fn handle_list_files_request(
-    path: &PathBuf,
-    base_dir: &PathBuf,
-) -> Result<Either<FilesResult, NamedFile>> {
-    if path.is_file() {
-        let file = NamedFile::open(path).context("Could not open file")?;
-        return Ok(Either::Right(file));
-    }
-    let data = crate::drive_access::list_files(&path, &base_dir).await?;
-    Ok(Either::Left(data))
-}
-
-#[derive(serde::Deserialize)]
-struct QueryFilterRequest {
-    query: String,
-}
-
-#[actix_web::post("/")]
-async fn query_files(
-    request: web::Form<QueryFilterRequest>,
-    hb: web::Data<Handlebars<'_>>,
-    base_dir: web::Data<PathBuf>,
-) -> impl Responder + '_ {
-    let query = &request.query;
-
-    let files = crate::drive_access::query_files(query, base_dir.as_ref());
-    match files {
-        Ok(files) => {
-            let response = response_renderer::ResponseRenderer::new(
-                json!({ "files": files }),
-                "query_results",
-                hb.into_inner().clone(),
-            );
-            Either::Left(response)
-        }
-        Err(e) => Either::Right(
-            HttpResponse::InternalServerError().body(format!("Error querying files: {}", e)),
-        ),
-    }
-}
-
-#[derive(Debug, actix_multipart::form::MultipartForm)]
-struct UploadFile {
-    #[multipart(rename = "file")]
-    files: Vec<actix_multipart::form::tempfile::TempFile>,
-}
-
-async fn upload_file(
-    hb: web::Data<Handlebars<'_>>,
-    base_dir: web::Data<PathBuf>,
-    form: actix_multipart::form::MultipartForm<UploadFile>,
-    path: web::ReqData<crate::server::RequestedPath>,
-) -> impl Responder {
-    let path = path.as_ref();
-    let dir_path = base_dir.join(path).to_path_buf();
-
-    // save new files
-    let files = form.into_inner().files;
-    let results = crate::drive_access::save_files(files, &dir_path);
-    let summary = results
-        .map(|(name, r)| match r {
-            Ok(_) => {
-                format!("File {} saved", name)
-            }
-            Err(e) => {
-                format!("File {} failed to save: {}", name, e)
-            }
-        })
-        .map(|message| format!("<li>{}</li>", message))
-        .collect::<String>();
-    let data = crate::drive_access::list_files(&dir_path, &base_dir).await;
-    match data {
-        Ok(data) => {
-            let body = hb.render("files_listing", &data).unwrap();
-            let summary = format!("<ul>{}</ul>", summary);
-            let confirmation_toast = hb
-                .render("confirmation_toast", &json!({ "message": summary }))
-                .unwrap();
-            HttpResponse::Ok().body(format!("{}{}", body, confirmation_toast))
-        }
-        Err(_) => HttpResponse::InternalServerError().finish(),
-    }
-}
-
-#[derive(Debug, actix_multipart::form::MultipartForm)]
-struct NewDirForm {
-    #[multipart(rename = "new_folder")]
-    new_folder_name: Text<String>,
-}
-
-async fn new_dir(
-    hb: web::Data<Handlebars<'_>>,
-    base_dir: web::Data<PathBuf>,
-    form: actix_multipart::form::MultipartForm<NewDirForm>,
-    path: web::ReqData<crate::server::RequestedPath>,
-) -> impl Responder {
-    let path = path.as_ref();
-    let dir_path = base_dir.join(path).to_path_buf();
-    // create new folder
-    let new_dir_name = &form.new_folder_name;
-
-    let new_dir_path = dir_path.join(new_dir_name.as_str());
-    let data = crate::drive_access::create_dir(&new_dir_path);
-    return match data {
-        Ok(_) => {
-            let data = crate::drive_access::list_files(&dir_path, &base_dir).await;
-            match data {
-                Ok(data) => {
-                    let body = hb.render("files_listing", &data).unwrap();
-                    HttpResponse::Ok().body(body)
-                }
-                Err(_) => HttpResponse::InternalServerError().finish(),
-            }
-        }
-        Err(_) => HttpResponse::InternalServerError().finish(),
-    };
-}
-
-async fn delete_file(
-    hb: web::Data<Handlebars<'_>>,
-    base_dir: web::Data<PathBuf>,
-    path: web::ReqData<crate::server::RequestedPath>,
-) -> impl Responder {
-    let path = path.as_ref();
-    let dir_path = base_dir.join(path).to_path_buf();
-    let data = crate::drive_access::delete_file_or_directory(&dir_path);
-    match data {
-        Ok(_) => {
-            let data = crate::drive_access::list_files(
-                &dir_path.parent().unwrap().to_path_buf(),
-                &base_dir,
-            )
-            .await;
-            match data {
-                Ok(data) => {
-                    let body = hb.render("files_listing", &data).unwrap();
-                    let confirmation_toast = hb
-                        .render("confirmation_toast", &json!({ "message": "File deleted" }))
-                        .unwrap();
-                    HttpResponse::Ok().body(format!("{}{}", body, confirmation_toast))
-                }
-                Err(_) => HttpResponse::InternalServerError()
-                    .reason("Failed to fetch files")
-                    .finish(),
-            }
-        }
-        Err(_) => HttpResponse::InternalServerError()
-            .reason("Failed to delete file")
-            .finish(),
-    }
 }
 
 /// Starts HTTP server.
@@ -233,7 +36,11 @@ pub(crate) async fn start_http_server(
             .service(actix_files::Files::new("/static", "./static"))
             .app_data(base_dir_data.clone())
             .app_data(handlebars_ref.clone())
-            .service(query_files)
+            .service(
+                web::resource("/")
+                    .guard(guard::Post())
+                    .route(web::post().to(query_files::handle)),
+            )
             .service(
                 web::resource("/{path:.*}")
                     .wrap(crate::server::RequestPath)
@@ -244,16 +51,16 @@ pub(crate) async fn start_http_server(
                     .route(
                         web::get()
                             .guard(actix_web::guard::Header("HX-Request", "true"))
-                            .to(folder_contents),
+                            .to(folder_contents::handle),
                     )
-                    .route(web::get().to(index))
+                    .route(web::get().to(index::handle))
                     .route(
                         web::put()
                             .guard(guard::Header("command", "new_folder"))
-                            .to(new_dir),
+                            .to(create_dir::handle),
                     )
-                    .route(web::put().to(upload_file))
-                    .route(web::delete().to(delete_file)),
+                    .route(web::put().to(upload_file::handle))
+                    .route(web::delete().to(delete_file::handle)),
             )
     })
     .bind(local_address)?
