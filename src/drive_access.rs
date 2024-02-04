@@ -58,6 +58,13 @@ pub(crate) struct FileInfo {
     pub name: String,
     pub is_dir: bool,
     pub file_type: Option<FileType>,
+    pub metadata: Option<FileMetadata>,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub(crate) struct FileMetadata {
+    pub(crate) created_at: Option<u64>,
+    pub(crate) modified_at: Option<u64>,
 }
 
 impl PartialEq for FileInfo {
@@ -92,6 +99,19 @@ pub(crate) struct FilesResult {
     pub parent: Option<String>,
 }
 
+fn to_file_metadata(metadata: std::fs::Metadata) -> FileMetadata {
+    FileMetadata {
+        created_at: metadata
+            .created()
+            .ok()
+            .map(|t| t.duration_since(std::time::UNIX_EPOCH).unwrap().as_secs()),
+        modified_at: metadata
+            .modified()
+            .ok()
+            .map(|t| t.duration_since(std::time::UNIX_EPOCH).unwrap().as_secs()),
+    }
+}
+
 pub(crate) async fn list_files(dir: &PathBuf, base_dir: &PathBuf) -> Result<FilesResult> {
     let mut files = dir
         .read_dir()
@@ -107,6 +127,7 @@ pub(crate) async fn list_files(dir: &PathBuf, base_dir: &PathBuf) -> Result<File
                     } else {
                         Some((f.path().as_path()).try_into().unwrap_or_default())
                     },
+                    metadata: f.metadata().ok().map(to_file_metadata),
                 }
             })
         })
@@ -137,14 +158,13 @@ fn relative_path(path: &Path, base_dir: &PathBuf) -> Result<String> {
 
 pub(crate) fn query_files(query: &str, base_dir: &Path) -> Result<Vec<FileInfo>> {
     use glob::glob_with;
-    let paths = glob_with(&format!(
-        "{}/**/{}*",
-        &base_dir.as_os_str().to_str().unwrap(),
-        query
-    ), MatchOptions {
-        case_sensitive: false,
-        ..Default::default()
-    })?;
+    let paths = glob_with(
+        &format!("{}/**/{}*", &base_dir.as_os_str().to_str().unwrap(), query),
+        MatchOptions {
+            case_sensitive: false,
+            ..Default::default()
+        },
+    )?;
 
     let mut files = paths
         .filter_map(|p| p.ok())
@@ -158,6 +178,7 @@ pub(crate) fn query_files(query: &str, base_dir: &Path) -> Result<Vec<FileInfo>>
                 } else {
                     Some((path.as_path()).try_into().unwrap_or_default())
                 },
+                metadata: path.metadata().ok().map(to_file_metadata),
             }
         })
         .filter(|f| !f.name.starts_with('.')) // ignore hidden files
