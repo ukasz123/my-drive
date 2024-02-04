@@ -2,9 +2,9 @@ use actix_web::{web, Either, HttpResponse, Responder};
 use handlebars::Handlebars;
 use std::path::PathBuf;
 
-use super::list_files::list_files_or_file_contents;
+use super::{list_files::list_files_or_file_contents, response_renderer::ResponseRenderer};
 
-pub(super) async fn handle(
+pub(crate) async fn handle(
     hb: web::Data<Handlebars<'_>>,
     base_dir: web::Data<PathBuf>,
     path: web::ReqData<crate::server::RequestedPath>,
@@ -15,8 +15,7 @@ pub(super) async fn handle(
     match data {
         Ok(data) => match data {
             Either::Left(data) => {
-                let body = hb.render("index", &data).unwrap();
-                HttpResponse::Ok().body(body)
+                ResponseRenderer::new(data, "index", hb.into_inner().clone()).respond_to(&req).map_into_boxed_body()
             }
             Either::Right(resp) => resp.into_response(&req),
         },

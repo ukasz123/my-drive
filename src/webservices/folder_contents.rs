@@ -18,7 +18,7 @@ pub(super) async fn handle(
                 let body = hb.render("files_listing", &data).unwrap();
                 HttpResponse::Ok().body(body)
             }
-            Either::Right(resp) => resp.into_response(&req),
+            Either::Right(file) => file.into_response(&req),
         },
         Err(anyhow_err) => match anyhow_err.downcast_ref::<super::FileListInputError>() {
             Some(err) => HttpResponse::BadRequest().body(err.to_string()),

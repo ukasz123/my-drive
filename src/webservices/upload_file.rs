@@ -1,4 +1,4 @@
-use actix_web::{web, HttpResponse, Responder};
+use actix_web::{http::header, web, HttpResponse, Responder};
 use handlebars::Handlebars;
 use serde_json::json;
 use std::path::PathBuf;
@@ -14,6 +14,7 @@ pub(super) async fn handle(
     base_dir: web::Data<PathBuf>,
     form: actix_multipart::form::MultipartForm<UploadFile>,
     path: web::ReqData<crate::server::RequestedPath>,
+    accept_header: web::Header<header::Accept>,
 ) -> impl Responder {
     let path = path.as_ref();
     let dir_path = base_dir.join(path).to_path_buf();
@@ -24,23 +25,26 @@ pub(super) async fn handle(
     let summary = results
         .map(|(name, r)| match r {
             Ok(_) => {
-                format!("File {} saved", name)
+                json!({"message": format!("File {} saved", name), "isError": false})
             }
             Err(e) => {
-                format!("File {} failed to save: {}", name, e)
+                json!({"message": format!("File {} failed to save: {}", name, e), "isError": true})
             }
         })
-        .map(|message| format!("<li>{}</li>", message))
-        .collect::<String>();
+        .collect::<Vec<_>>();
     let data = crate::drive_access::list_files(&dir_path, &base_dir).await;
     match data {
         Ok(data) => {
             let body = hb.render("files_listing", &data).unwrap();
-            let summary = format!("<ul>{}</ul>", summary);
+            let summary = hb.render("upload_file_summary_message", &summary).unwrap();
             let confirmation_toast = hb
                 .render("confirmation_toast", &json!({ "message": summary }))
                 .unwrap();
-            HttpResponse::Ok().body(format!("{}{}", body, confirmation_toast))
+            if accept_header.iter().any(|h| h.item.subtype() == "json") {
+                HttpResponse::Ok().json(json!({"files": data, "message": summary}))
+            } else {
+                HttpResponse::Ok().body(format!("{}{}", body, confirmation_toast))
+            }
         }
         Err(_) => HttpResponse::InternalServerError().finish(),
     }

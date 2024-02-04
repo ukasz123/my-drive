@@ -1,0 +1,9 @@
+<ul>
+    {{#each this}}
+        {{#if this.isError}}
+            <li class="error">{{this.message}}</li>
+        {{else}}
+            <li>{{this.message}}</li>
+        {{/if}}
+    {{/each}}
+</ul>

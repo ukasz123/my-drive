@@ -1,8 +1,10 @@
 use actix_multipart::form::text::Text;
-use actix_web::{web, HttpResponse, Responder};
+use actix_web::{web, Either, HttpResponse, Responder};
 use handlebars::Handlebars;
 
 use std::path::PathBuf;
+
+use super::utilities::multitype_input::{EitherInputExtended, EitherInputExtendedWrapper};
 
 #[derive(Debug, actix_multipart::form::MultipartForm)]
 pub(super) struct NewDirForm {
@@ -10,18 +12,28 @@ pub(super) struct NewDirForm {
     new_folder_name: Text<String>,
 }
 
+#[derive(Debug, serde::Deserialize)]
+pub(super) struct NewDirRequest {
+    new_folder_name: String,
+}
+
 pub(super) async fn handle(
     hb: web::Data<Handlebars<'_>>,
     base_dir: web::Data<PathBuf>,
-    form: actix_multipart::form::MultipartForm<NewDirForm>,
+    form: EitherInputExtended<NewDirRequest, NewDirForm>,
     path: web::ReqData<crate::server::RequestedPath>,
 ) -> impl Responder {
     let path = path.as_ref();
     let dir_path = base_dir.join(path).to_path_buf();
     // create new folder
-    let new_dir_name = &form.new_folder_name;
+    let form_wrapper = EitherInputExtendedWrapper(form);
+    let form = (&form_wrapper).into();
+    let new_dir_name = match form {
+        Either::Left(form) => form.new_folder_name.as_str(),
+        Either::Right(form) => form.new_folder_name.as_str(),
+    };
 
-    let new_dir_path = dir_path.join(new_dir_name.as_str());
+    let new_dir_path = dir_path.join(new_dir_name);
     let data = crate::drive_access::create_dir(&new_dir_path);
     match data {
         Ok(_) => {

@@ -24,11 +24,18 @@ where
         actix_web::body::EitherBody<actix_web::body::BoxBody, actix_web::body::EitherBody<String>>;
 
     fn respond_to(self, req: &actix_web::HttpRequest) -> actix_web::HttpResponse<Self::Body> {
-        let body = if req.headers().get("HX-Request").is_some() {
+        let body = if req.headers().get("HX-Request").is_some()
+            || !req.headers().get("Accept").is_some_and(|accept_header| {
+                accept_header
+                    .to_str()
+                    .is_ok_and(|accept_header_val| accept_header_val.contains("json"))
+            }) {
             let body = self.hb.render(self.template, &self.data).unwrap();
-            actix_web::Either::Left(actix_web::HttpResponse::Ok()
-            .insert_header(header::ContentType::html())
-            .body(body))
+            actix_web::Either::Left(
+                actix_web::HttpResponse::Ok()
+                    .insert_header(header::ContentType::html())
+                    .body(body),
+            )
         } else {
             actix_web::Either::Right(actix_web::web::Json(&self.data))
         };

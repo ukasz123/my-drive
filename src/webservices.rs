@@ -10,6 +10,7 @@ mod list_files;
 mod query_files;
 mod response_renderer;
 mod upload_file;
+mod utilities;
 
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum FileListInputError {
