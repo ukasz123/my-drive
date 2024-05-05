@@ -10,10 +10,13 @@
   <td>
     <div>{{file.name}}</div>
   </td>
+  <td>{{#unless file.is_dir}}<em>{{format_file_size file.metadata.size}}</em>{{/unless}}</td>
   <td>
     {{#unless file.is_dir}}
-    <a type="button" class="btn btn-primary" href="{{path}}/{{file.name}}" target="_blank" ><i class="bi-cloud-download"></i></a>
+    <a type="button" class="btn btn-primary" href="{{path}}/{{file.name}}" target="_blank"><i
+        class="bi-cloud-download"></i></a>
     {{/unless}}
-    <button type="button" class="btn btn-danger" hx-delete="{{path}}/{{file.name}}" hx-target="#file-listing"><i class="bi-trash"></i></button>
+    <button type="button" class="btn btn-danger" hx-delete="{{path}}/{{file.name}}" hx-target="#file-listing"><i
+        class="bi-trash"></i></button>
   </td>
 </tr>

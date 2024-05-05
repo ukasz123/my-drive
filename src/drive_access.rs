@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::{
+    os::unix::fs::MetadataExt,
+    path::{Path, PathBuf},
+};
 
 use actix_multipart::form::tempfile::TempFile;
 use anyhow::{Context, Ok, Result};
@@ -27,24 +30,27 @@ impl TryFrom<&std::path::Path> for FileType {
         Ok(FileType {
             mime: info.media_type().to_owned(),
             f_type: match info.kind() {
-                file_format::Kind::Application | file_format::Kind::Executable => "app",
+                file_format::Kind::Executable => "app",
                 file_format::Kind::Archive
-                | file_format::Kind::Compression
+                | file_format::Kind::Compressed
                 | file_format::Kind::Disk
                 | file_format::Kind::Database
                 | file_format::Kind::Package
                 | file_format::Kind::Rom => "archive",
                 file_format::Kind::Audio => "audio",
-                file_format::Kind::Certificate
-                | file_format::Kind::Document
-                | file_format::Kind::Geospatial
-                | file_format::Kind::Model => "document",
+                file_format::Kind::Geospatial
+                | file_format::Kind::Spreadsheet
+                | file_format::Kind::Formula
+                | file_format::Kind::Diagram
+                | file_format::Kind::Metadata
+                | file_format::Kind::Presentation
+                | file_format::Kind::Model
+                | file_format::Kind::Other => "document",
                 file_format::Kind::Font => "font",
                 file_format::Kind::Image => "image",
-                file_format::Kind::Book
-                | file_format::Kind::Subtitle
-                | file_format::Kind::Syndication
-                | file_format::Kind::Text => "txt",
+                file_format::Kind::Ebook
+                | file_format::Kind::Document
+                | file_format::Kind::Subtitle => "txt",
 
                 file_format::Kind::Playlist | file_format::Kind::Video => "video",
             }
@@ -65,6 +71,7 @@ pub(crate) struct FileInfo {
 pub(crate) struct FileMetadata {
     pub(crate) created_at: Option<u64>,
     pub(crate) modified_at: Option<u64>,
+    pub(crate) size: Option<u64>,
 }
 
 impl PartialEq for FileInfo {
@@ -109,6 +116,7 @@ fn to_file_metadata(metadata: std::fs::Metadata) -> FileMetadata {
             .modified()
             .ok()
             .map(|t| t.duration_since(std::time::UNIX_EPOCH).unwrap().as_secs()),
+        size: Some(metadata.size()),
     }
 }
 

@@ -1,20 +1,26 @@
-
 handlebars::handlebars_helper!(is_some_string: |option: Option<String>| option.is_some() );
 
 use handlebars::*;
+use serde_json::Value;
 use tracing::debug;
 
-pub(crate) fn prepare<'reg>() -> Handlebars<'reg>{
+pub(crate) fn prepare<'reg>() -> Handlebars<'reg> {
     let mut handlebars = Handlebars::new();
     handlebars.set_dev_mode(true);
     handlebars.register_helper("is-some-string", Box::new(is_some_string));
     handlebars.register_decorator("switch", Box::new(switch));
     handlebars.register_helper("case", Box::new(case));
+    handlebars.register_helper("format_file_size", Box::new(format_file_size));
     handlebars
-        .register_templates_directory(".hbs", "./templates")
+        .register_templates_directory(
+            "./templates",
+            DirectorySourceOptions {
+                tpl_extension: ".hbs".to_string(),
+                ..Default::default()
+            },
+        )
         .unwrap();
     handlebars
-
 }
 
 fn switch<'reg: 'rc, 'rc>(
@@ -23,9 +29,10 @@ fn switch<'reg: 'rc, 'rc>(
     ctx: &Context,
     rc: &mut RenderContext,
 ) -> Result<(), RenderError> {
-    let switch_param = d
-        .param(0)
-        .ok_or(RenderError::new("switch param not found"))?;
+    let switch_param = d.param(0).ok_or(RenderErrorReason::ParamNotFoundForName(
+        "switch",
+        "switch param not found".to_string(),
+    ))?;
     // modify json object
     let mut new_ctx = ctx.clone();
     {
@@ -41,7 +48,7 @@ fn switch<'reg: 'rc, 'rc>(
 }
 
 fn case<'reg, 'rc>(
-    h: &Helper<'reg, 'rc>,
+    h: &Helper<'rc>,
     r: &'reg Handlebars<'reg>,
     ctx: &'rc Context,
     rc: &mut RenderContext<'reg, 'rc>,
@@ -62,6 +69,22 @@ fn case<'reg, 'rc>(
         Ok(())
     }
 }
+
+handlebars_helper!(format_file_size: |v: Value|  {
+    if let Some(mut bytes) = v.as_u64() {
+        let mut i: usize = 0;
+        let postfixes = vec!["B", "kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
+
+        while bytes >= 1024 && i < postfixes.len() - 1 {
+            bytes /= 1024;
+            i += 1;
+        }
+
+        let rendered = format!("{} {}", bytes, postfixes[i]);
+        return Ok(ScopedJson::Derived(Value::String(rendered)));
+    }
+    format!("")
+});
 
 #[cfg(test)]
 mod test {

@@ -11,10 +11,10 @@ actix-multipart = "0.6.0"
 actix-web = "4.3.1"
 anyhow = "1.0.72"
 dotenv = "0.15.0"
-file-format = { version = "0.20.0", features = ["reader"] }
+file-format = { version = "0.24.0", features = ["reader"] }
 futures = { version = "0.3.28", optional = true }
 glob = "0.3.1"
-handlebars = { version = "4.3.7", features = ["dir_source"] }
+handlebars = { version = "5.1.2", features = ["dir_source"] }
 serde = { version = "1.0.174", features = ["derive"] }
 serde_json = "1.0.*"
 thiserror = "1.0.44"
