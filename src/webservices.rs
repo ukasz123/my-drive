@@ -1,6 +1,8 @@
 use std::path::PathBuf;
 
 use actix_web::{guard, web, App, HttpServer};
+use anyhow::Context;
+
 
 mod create_dir;
 mod delete_file;
@@ -21,7 +23,7 @@ pub(crate) enum FileListInputError {
 /// Starts HTTP server.
 pub(crate) async fn start_http_server(
     local_address: &impl std::net::ToSocketAddrs,
-) -> std::io::Result<()> {
+) -> anyhow::Result<()> {
     // Handlebars uses a repository for the compiled templates. This object must be
     // shared between the application threads, and is therefore passed to the
     // Application Builder as an atomic reference-counted pointer.
@@ -31,6 +33,8 @@ pub(crate) async fn start_http_server(
 
     let base_dir = PathBuf::from(dotenv::var("BASE_DIR").unwrap());
     let base_dir_data = web::Data::new(base_dir);
+
+    
     HttpServer::new(move || {
         App::new()
             .wrap(tracing_actix_web::TracingLogger::default())
@@ -65,6 +69,7 @@ pub(crate) async fn start_http_server(
             )
     })
     .bind(local_address)?
-    .run()
-    .await
+.run()
+.await
+.context("Cannot run the server")
 }

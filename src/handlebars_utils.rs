@@ -73,7 +73,7 @@ fn case<'reg, 'rc>(
 handlebars_helper!(format_file_size: |v: Value|  {
     if let Some(mut bytes) = v.as_u64() {
         let mut i: usize = 0;
-        let postfixes = vec!["B", "kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
+        let postfixes = ["B", "kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
 
         while bytes >= 1024 && i < postfixes.len() - 1 {
             bytes /= 1024;
@@ -83,7 +83,7 @@ handlebars_helper!(format_file_size: |v: Value|  {
         let rendered = format!("{} {}", bytes, postfixes[i]);
         return Ok(ScopedJson::Derived(Value::String(rendered)));
     }
-    format!("")
+    String::new()
 });
 
 #[cfg(test)]

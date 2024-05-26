@@ -1,10 +1,12 @@
 use anyhow::{Context, Result};
+use tracing::instrument;
 use std::path::PathBuf;
 
 use crate::drive_access::FilesResult;
 use actix_files::NamedFile;
 use actix_web::Either;
 
+#[instrument]
 pub(super) async fn list_files_or_file_contents(
     path: &PathBuf,
     base_dir: &PathBuf,

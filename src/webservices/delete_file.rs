@@ -1,6 +1,7 @@
 use actix_web::{web, HttpResponse, Responder};
 use handlebars::Handlebars;
 use serde_json::json;
+use tracing::trace_span;
 
 use std::path::PathBuf;
 
@@ -11,9 +12,19 @@ pub(super) async fn handle(
 ) -> impl Responder {
     let path = path.as_ref();
     let dir_path = base_dir.join(path).to_path_buf();
-    let data = crate::drive_access::delete_file_or_directory(&dir_path);
+
+    let data = {
+        let span = trace_span!("delete file or directory", path = path.to_str());
+        let _enter = span.enter();
+        crate::drive_access::delete_file_or_directory(&dir_path)
+    };
     match data {
         Ok(_) => {
+            let span = trace_span!(
+                "list files after deletion",
+                path = dir_path.parent().and_then(|parent| parent.to_str())
+            );
+            let _enter = span.enter();
             let data = crate::drive_access::list_files(
                 &dir_path.parent().unwrap().to_path_buf(),
                 &base_dir,

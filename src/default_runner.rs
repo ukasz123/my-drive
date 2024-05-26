@@ -1,6 +1,6 @@
 use tracing::info;
 
-pub(crate) async fn run_server() -> std::io::Result<()> {
+pub(crate) async fn run_server() -> anyhow::Result<()> {
     let local_address = (
         "0.0.0.0",
         dotenv::var("PORT")

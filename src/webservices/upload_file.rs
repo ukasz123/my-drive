@@ -1,6 +1,7 @@
 use actix_web::{http::header, web, HttpResponse, Responder};
 use handlebars::Handlebars;
 use serde_json::json;
+use tracing::trace_span;
 use std::path::PathBuf;
 
 #[derive(Debug, actix_multipart::form::MultipartForm)]
@@ -21,6 +22,9 @@ pub(super) async fn handle(
 
     // save new files
     let files = form.into_inner().files;
+    let span = trace_span!("save new files", files_count=files.len());
+
+    let enter = span.enter();
     let results = crate::drive_access::save_files(files, &dir_path);
     let summary = results
         .map(|(name, r)| match r {
@@ -32,6 +36,11 @@ pub(super) async fn handle(
             }
         })
         .collect::<Vec<_>>();
+    drop(enter);
+
+    let span = trace_span!("list files");
+
+    let _enter = span.enter();
     let data = crate::drive_access::list_files(&dir_path, &base_dir).await;
     match data {
         Ok(data) => {

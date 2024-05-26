@@ -1,6 +1,6 @@
 use anyhow::Context;
 
-pub(crate) async fn run_server() -> std::io::Result<()> {
+pub(crate) async fn run_server() -> anyhow::Result<()> {
     use futures::pin_mut;
 
     let local_address = (

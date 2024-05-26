@@ -84,10 +84,7 @@ impl Eq for FileInfo {}
 
 impl PartialOrd for FileInfo {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        match self.is_dir.partial_cmp(&other.is_dir) {
-            Some(core::cmp::Ordering::Equal) => self.name.partial_cmp(&other.name),
-            ord => return ord,
-        }
+        Some(self.cmp(other))
     }
 }
 impl Ord for FileInfo {
@@ -120,7 +117,9 @@ fn to_file_metadata(metadata: std::fs::Metadata) -> FileMetadata {
     }
 }
 
+#[tracing::instrument]
 pub(crate) async fn list_files(dir: &PathBuf, base_dir: &PathBuf) -> Result<FilesResult> {
+
     let mut files = dir
         .read_dir()
         .context(format!("Reading {:?}", dir))?
@@ -151,7 +150,7 @@ pub(crate) async fn list_files(dir: &PathBuf, base_dir: &PathBuf) -> Result<File
         parent: dir
             .parent()
             .into_iter()
-            .filter_map(|p| relative_path(&p.to_path_buf(), base_dir).ok())
+            .filter_map(|p| relative_path(p, base_dir).ok())
             .next(),
     })
 }
@@ -164,6 +163,7 @@ fn relative_path(path: &Path, base_dir: &PathBuf) -> Result<String> {
     Ok(format!("/{}", path))
 }
 
+#[tracing::instrument]
 pub(crate) fn query_files(query: &str, base_dir: &Path) -> Result<Vec<FileInfo>> {
     use glob::glob_with;
     let paths = glob_with(
@@ -196,6 +196,7 @@ pub(crate) fn query_files(query: &str, base_dir: &Path) -> Result<Vec<FileInfo>>
     Ok(files)
 }
 
+#[tracing::instrument]
 pub(crate) fn save_files(
     files: Vec<TempFile>,
     dir: &Path,
@@ -211,6 +212,7 @@ pub(crate) fn save_files(
         })
 }
 
+#[tracing::instrument]
 pub(crate) fn delete_file_or_directory(path: &PathBuf) -> Result<()> {
     if path.is_dir() {
         std::fs::remove_dir_all(path).context(format!("Deleting directory {:?}", path))
@@ -219,6 +221,7 @@ pub(crate) fn delete_file_or_directory(path: &PathBuf) -> Result<()> {
     }
 }
 
+#[tracing::instrument]
 pub(crate) fn create_dir(new_dir_path: &PathBuf) -> Result<()> {
     std::fs::create_dir(new_dir_path).context(format!("Creating directory {:?}", new_dir_path))
 }

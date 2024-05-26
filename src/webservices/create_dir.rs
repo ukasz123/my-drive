@@ -1,6 +1,7 @@
 use actix_multipart::form::text::Text;
 use actix_web::{web, Either, HttpResponse, Responder};
 use handlebars::Handlebars;
+use tracing::trace_span;
 
 use std::path::PathBuf;
 
@@ -34,7 +35,12 @@ pub(super) async fn handle(
     };
 
     let new_dir_path = dir_path.join(new_dir_name);
-    let data = crate::drive_access::create_dir(&new_dir_path);
+    let data = 
+    { 
+        let span = trace_span!("create dir", path=new_dir_path.to_str());
+        let _enter = span.enter();
+        crate::drive_access::create_dir(&new_dir_path)
+    };
     match data {
         Ok(_) => {
             let data = crate::drive_access::list_files(&dir_path, &base_dir).await;
