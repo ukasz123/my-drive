@@ -1,5 +1,5 @@
 use actix_web::http::header;
-use tracing::trace_span;
+use tracing::debug_span;
 
 #[derive(Debug)]
 pub(super) struct ResponseRenderer<'a, T: serde::ser::Serialize> {
@@ -24,9 +24,9 @@ where
 {
     type Body =
         actix_web::body::EitherBody<actix_web::body::BoxBody, actix_web::body::EitherBody<String>>;
-    
+
     fn respond_to(self, req: &actix_web::HttpRequest) -> actix_web::HttpResponse<Self::Body> {
-        let span = trace_span!("responsive_render_content");
+        let span = debug_span!("responsive_render_content");
         let _enter = span.enter();
         let body = if req.headers().get("HX-Request").is_some()
             || !req.headers().get("Accept").is_some_and(|accept_header| {
@@ -34,7 +34,10 @@ where
                     .to_str()
                     .is_ok_and(|accept_header_val| accept_header_val.contains("json"))
             }) {
+            let hb_span = debug_span!("render_template", meta.hb.template = self.template);
+            let _enter = hb_span.enter();
             let body = self.hb.render(self.template, &self.data).unwrap();
+            drop(_enter);
             actix_web::Either::Left(
                 actix_web::HttpResponse::Ok()
                     .insert_header(header::ContentType::html())

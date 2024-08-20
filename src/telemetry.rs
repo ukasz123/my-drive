@@ -1,5 +1,7 @@
-use tracing::Subscriber;
+use tracing::level_filters::LevelFilter;
+use tracing::{Level, Subscriber};
 use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::prelude::*;
 
 mod log;
 mod otel;
@@ -8,7 +10,8 @@ pub(crate) fn create_subscriber() -> Box<dyn Subscriber + Send + Sync> {
     let log_layer = log::log_layer();
 
     let opentelemetry_layer = otel::init_opentelemetry_tracer()
-        .map(|tracer| tracing_opentelemetry::layer().with_tracer(tracer));
+        .map(|tracer| tracing_opentelemetry::layer().with_tracer(tracer))
+        .map(|otel_layer| otel_layer.with_filter(LevelFilter::from_level(Level::DEBUG)));
 
     let subscriber = tracing_subscriber::Registry::default();
 

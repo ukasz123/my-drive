@@ -1,4 +1,4 @@
-use actix_web::{web, Either, HttpResponse, Responder};
+use actix_web::{http::header, web, Either, HttpResponse, Responder};
 use handlebars::Handlebars;
 use std::path::PathBuf;
 
@@ -16,7 +16,9 @@ pub(super) async fn handle(
         Ok(data) => match data {
             Either::Left(data) => {
                 let body = hb.render("files_listing", &data).unwrap();
-                HttpResponse::Ok().body(body)
+                HttpResponse::Ok()
+                    .insert_header(header::ContentType::html())
+                    .body(body)
             }
             Either::Right(file) => file.into_response(&req),
         },
