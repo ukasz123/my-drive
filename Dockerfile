@@ -1,7 +1,7 @@
-# Base image for rapsberrypi 3 target
-FROM rustembedded/cross:armv7-unknown-linux-gnueabihf
+# Base image for rapsberrypi 4 target
+FROM rustembedded/cross:aarch64-unknown-linux-gnu
 
 # Install pkg-config
-RUN dpkg --add-architecture armhf && \
-	    apt-get update && \
-	    apt-get install --assume-yes  pkg-config
+RUN dpkg --add-architecture arm64 && \
+    apt-get update && \
+    apt-get install --assume-yes  pkg-config

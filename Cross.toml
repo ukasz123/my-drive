@@ -1,7 +1,5 @@
-[target.armv7-unknown-linux-gnueabihf]
+[target.aarch64-unknown-linux-gnu]
 image = "mydrive-raspberrypi-cross"
 
 [build.env]
-passthrough = [
-	"RUSTFLAGS",
-]
+passthrough = ["RUSTFLAGS"]
