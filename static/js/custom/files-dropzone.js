@@ -130,6 +130,10 @@ ${DROPZONE_SELECTOR}.${DROP_ACTIVE_CLASS} tbody {
     table.addEventListener("dragleave", unhighlight);
     table.addEventListener("dragend", unhighlight);
     table.addEventListener("drop", handleDrop);
+
+    window.addEventListener("dragend", resetHighlight);
+    window.addEventListener("dragleave", resetHighlight);
+    window.addEventListener("drop", resetHighlight);
   };
 
   const init = (target) => {
