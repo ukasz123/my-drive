@@ -22,8 +22,6 @@ The main goal was to try HTMX with Rust backend.
  - Docker daemon running
 
 #### Steps
- 1. Build custom docker image for `cross` tool to use by calling
- `docker buildx build --platform linux/arm64 -t mydrive-raspberrypi-cross --load .`
  1. Run cross compilation
  `RUSTFLAGS='-L /usr/aarch64-linux-gnu/lib/ -L /usr/lib/aarch64-linux-gnu/' cross build --release --target=aarch64-unknown-linux-gnu`
 
