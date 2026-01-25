@@ -1,34 +1,33 @@
 (() => {
-  const DROP_ACTIVE_CLASS = "files-dropzone--active";
-  const DROPZONE_BASE_CLASS = "files-dropzone";
-  const DROPZONE_STYLE_ID = "files-dropzone-styles";
   const DROPZONE_SELECTOR = "#files-table";
+  const DROPZONE_BASE_CLASSES = [
+    "rounded-3",
+    "bg-white",
+    "position-relative",
+    "overflow-hidden",
+  ];
+  const DROPZONE_ACTIVE_CLASSES = ["shadow", "bg-primary-subtle"];
+  const DROPZONE_DIM_CLASSES = ["opacity-50", "bg-body"];
+  const OVERLAY_CLASSES = [
+    "position-absolute",
+    "top-50",
+    "start-50",
+    "translate-middle",
+    "d-flex",
+    "flex-column",
+    "align-items-center",
+    "gap-2",
+    "text-primary",
+    "fw-semibold",
+    "user-select-none",
+    "text-center",
+    "pe-none",
+    "z-2",
+  ];
 
   const prevent = (event) => {
     event.preventDefault();
     event.stopPropagation();
-  };
-
-  const ensureStyles = () => {
-    if (document.getElementById(DROPZONE_STYLE_ID)) {
-      return;
-    }
-
-    const style = document.createElement("style");
-    style.id = DROPZONE_STYLE_ID;
-    style.textContent = `
-${DROPZONE_SELECTOR}.${DROPZONE_BASE_CLASS} {
-  transition: box-shadow 0.2s ease, background-color 0.2s ease;
-}
-${DROPZONE_SELECTOR}.${DROP_ACTIVE_CLASS} {
-  background-color: rgba(13, 110, 253, 0.08);
-  box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.5);
-}
-${DROPZONE_SELECTOR}.${DROP_ACTIVE_CLASS} tbody {
-  opacity: 0.5;
-}
-`;
-    document.head.appendChild(style);
   };
 
   const assignFilesToInput = (fileInput, files) => {
@@ -88,15 +87,31 @@ ${DROPZONE_SELECTOR}.${DROP_ACTIVE_CLASS} tbody {
     }
 
     table.dataset.dropzoneInitialized = "true";
-    ensureStyles();
-    table.classList.add(DROPZONE_BASE_CLASS);
+    DROPZONE_BASE_CLASSES.forEach((cls) => table.classList.add(cls));
+
+    const overlay = document.createElement("div");
+    overlay.classList.add(...OVERLAY_CLASSES, "d-none");
+    overlay.innerHTML = `
+      <i class="bi bi-cloud-upload display-5" aria-hidden="true"></i>
+      <span class="lead">Drop files to upload</span>
+    `;
+    table.appendChild(overlay);
+
+    const tableBodies = Array.from(table.tBodies ?? []);
+
+    const showOverlay = () => overlay.classList.remove("d-none");
+    const hideOverlay = () => overlay.classList.add("d-none");
 
     let dragCounter = 0;
 
     const highlight = (event) => {
       prevent(event);
       dragCounter += 1;
-      table.classList.add(DROP_ACTIVE_CLASS);
+      DROPZONE_ACTIVE_CLASSES.forEach((cls) => table.classList.add(cls));
+      tableBodies.forEach((body) =>
+        DROPZONE_DIM_CLASSES.forEach((cls) => body.classList.add(cls)),
+      );
+      showOverlay();
     };
 
     const unhighlight = (event) => {
@@ -104,13 +119,21 @@ ${DROPZONE_SELECTOR}.${DROP_ACTIVE_CLASS} tbody {
       dragCounter = Math.max(dragCounter - 1, 0);
 
       if (dragCounter === 0) {
-        table.classList.remove(DROP_ACTIVE_CLASS);
+        DROPZONE_ACTIVE_CLASSES.forEach((cls) => table.classList.remove(cls));
+        tableBodies.forEach((body) =>
+          DROPZONE_DIM_CLASSES.forEach((cls) => body.classList.remove(cls)),
+        );
+        hideOverlay();
       }
     };
 
     const resetHighlight = () => {
       dragCounter = 0;
-      table.classList.remove(DROP_ACTIVE_CLASS);
+      DROPZONE_ACTIVE_CLASSES.forEach((cls) => table.classList.remove(cls));
+      tableBodies.forEach((body) =>
+        DROPZONE_DIM_CLASSES.forEach((cls) => body.classList.remove(cls)),
+      );
+      hideOverlay();
     };
 
     const handleDrop = (event) => {
