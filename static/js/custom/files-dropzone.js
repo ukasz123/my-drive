@@ -134,6 +134,9 @@ ${DROPZONE_SELECTOR}.${DROP_ACTIVE_CLASS} tbody {
     window.addEventListener("dragover", resetHighlight);
     window.addEventListener("dragleave", resetHighlight);
     window.addEventListener("dragend", resetHighlight);
+    const events = ["dragenter", "dragover", "dragleave", "dragend", "drop"];
+    attachDebugLogging(table, events, "table");
+    attachDebugLogging(window, events, "window");
   };
 
   const init = (target) => {

@@ -28,8 +28,11 @@
 
   <script src="/static/js/bootstrap.bundle.min.js"></script>
   <script src="/static/js/htmx.min.js"></script>
-  <!-- TODO: make it render only in debug mode -->
-  <script src="/static/js/custom/debugging-tools.js"/>
+  {{#if (is_debug_build)}}
+  <script src="/static/js/custom/debugging-tools.js"></script>
+  {{else}}
+  <script src="/static/js/custom/debugging-tools.stub.js"></script>
+  {{/if}}
 
   <!-- feedback -->
   <div class="toast-container position-fixed bottom-0 start-0 p-3">
