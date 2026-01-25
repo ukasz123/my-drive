@@ -10,6 +10,7 @@ pub(crate) fn prepare<'reg>() -> Handlebars<'reg> {
     handlebars.register_helper("is-some-string", Box::new(is_some_string));
     handlebars.register_decorator("switch", Box::new(switch));
     handlebars.register_helper("case", Box::new(case));
+    handlebars.register_helper("is_debug_build", Box::new(is_debug_build));
     handlebars.register_helper("format_file_size", Box::new(format_file_size));
     handlebars
         .register_templates_directory(
@@ -85,6 +86,8 @@ handlebars_helper!(format_file_size: |v: Value|  {
     }
     String::new()
 });
+
+handlebars::handlebars_helper!(is_debug_build: | | cfg!(debug_assertions));
 
 #[cfg(test)]
 mod test {
