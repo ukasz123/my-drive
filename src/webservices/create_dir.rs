@@ -35,9 +35,8 @@ pub(super) async fn handle(
     };
 
     let new_dir_path = dir_path.join(new_dir_name);
-    let data = 
-    { 
-        let span = trace_span!("create dir", path=new_dir_path.to_str());
+    let data = {
+        let span = trace_span!("create dir", path = new_dir_path.to_str());
         let _enter = span.enter();
         crate::drive_access::create_dir(&new_dir_path)
     };

@@ -119,7 +119,6 @@ fn to_file_metadata(metadata: std::fs::Metadata) -> FileMetadata {
 
 #[tracing::instrument]
 pub(crate) async fn list_files(dir: &PathBuf, base_dir: &PathBuf) -> Result<FilesResult> {
-
     let mut files = dir
         .read_dir()
         .context(format!("Reading {:?}", dir))?

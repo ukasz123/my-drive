@@ -18,7 +18,7 @@ pub(super) struct QueryFilterRequestMultipart {
 }
 
 pub(super) async fn handle(
-    request: EitherInputExtended<QueryFilterRequest,QueryFilterRequestMultipart>,
+    request: EitherInputExtended<QueryFilterRequest, QueryFilterRequestMultipart>,
     hb: web::Data<Handlebars<'_>>,
     base_dir: web::Data<PathBuf>,
 ) -> impl Responder + '_ {
@@ -28,7 +28,7 @@ pub(super) async fn handle(
         Either::Left(query) => query.query.as_str(),
         Either::Right(query) => query.query.as_str(),
     };
-    
+
     let files = crate::drive_access::query_files(query, base_dir.as_ref());
     match files {
         Ok(files) => {

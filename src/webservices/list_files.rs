@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
-use tracing::instrument;
 use std::path::PathBuf;
+use tracing::instrument;
 
 use crate::drive_access::FilesResult;
 use actix_files::NamedFile;

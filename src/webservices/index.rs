@@ -14,9 +14,9 @@ pub(crate) async fn handle(
     let data = list_files_or_file_contents(&path, &base_dir).await;
     match data {
         Ok(data) => match data {
-            Either::Left(data) => {
-                ResponseRenderer::new(data, "index", hb.into_inner().clone()).respond_to(&req).map_into_boxed_body()
-            }
+            Either::Left(data) => ResponseRenderer::new(data, "index", hb.into_inner().clone())
+                .respond_to(&req)
+                .map_into_boxed_body(),
             Either::Right(resp) => resp.into_response(&req),
         },
         Err(anyhow_err) => match anyhow_err.downcast_ref::<super::FileListInputError>() {

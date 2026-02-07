@@ -26,7 +26,7 @@ mod config_model;
 
 async fn start_ngrok(local_address: &(&str, u16)) -> anyhow::Result<()> {
     use ngrok::prelude::*;
-    use tracing::{warn, info};
+    use tracing::{info, warn};
 
     use config_model::NgrokConfig;
 
@@ -76,6 +76,9 @@ async fn start_ngrok(local_address: &(&str, u16)) -> anyhow::Result<()> {
     }
 
     let mut tun = tun_builder.listen().await?;
-    info!("Tunnel to {local_address:?} started on URL: {:?}", tun.url());
+    info!(
+        "Tunnel to {local_address:?} started on URL: {:?}",
+        tun.url()
+    );
     Ok(tun.forward_tcp(local_address).await?)
 }

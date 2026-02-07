@@ -1,8 +1,8 @@
 use actix_web::{http::header, web, HttpResponse, Responder};
 use handlebars::Handlebars;
 use serde_json::json;
-use tracing::trace_span;
 use std::path::PathBuf;
+use tracing::trace_span;
 
 #[derive(Debug, actix_multipart::form::MultipartForm)]
 pub(super) struct UploadFile {
@@ -22,7 +22,7 @@ pub(super) async fn handle(
 
     // save new files
     let files = form.into_inner().files;
-    let span = trace_span!("save new files", files_count=files.len());
+    let span = trace_span!("save new files", files_count = files.len());
 
     let enter = span.enter();
     let results = crate::drive_access::save_files(files, &dir_path);

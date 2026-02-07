@@ -3,7 +3,6 @@ use std::path::PathBuf;
 use actix_web::{guard, web, App, HttpServer};
 use anyhow::Context;
 
-
 mod create_dir;
 mod delete_file;
 mod folder_contents;
@@ -34,7 +33,6 @@ pub(crate) async fn start_http_server(
     let base_dir = PathBuf::from(dotenv::var("BASE_DIR").unwrap());
     let base_dir_data = web::Data::new(base_dir);
 
-    
     HttpServer::new(move || {
         App::new()
             .wrap(tracing_actix_web::TracingLogger::default())
@@ -69,7 +67,7 @@ pub(crate) async fn start_http_server(
             )
     })
     .bind(local_address)?
-.run()
-.await
-.context("Cannot run the server")
+    .run()
+    .await
+    .context("Cannot run the server")
 }
