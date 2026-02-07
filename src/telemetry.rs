@@ -1,5 +1,6 @@
 use tracing::level_filters::LevelFilter;
 use tracing::{Level, Subscriber};
+use tracing_subscriber::filter::filter_fn;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::prelude::*;
 
@@ -11,7 +12,12 @@ pub(crate) fn create_subscriber() -> Box<dyn Subscriber + Send + Sync> {
 
     let opentelemetry_layer = otel::init_opentelemetry_tracer()
         .map(|tracer| tracing_opentelemetry::layer().with_tracer(tracer))
-        .map(|otel_layer| otel_layer.with_filter(LevelFilter::from_level(Level::DEBUG)));
+        .map(|otel_layer| {
+            otel_layer
+                .with_filter(LevelFilter::from_level(Level::DEBUG))
+                // exclude traces from HTTP2 server
+                .with_filter(filter_fn(|sm| !sm.target().starts_with("h2")))
+        });
 
     let subscriber = tracing_subscriber::Registry::default();
 
