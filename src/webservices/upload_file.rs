@@ -2,7 +2,7 @@ use actix_web::{http::header, web, HttpResponse, Responder};
 use handlebars::Handlebars;
 use serde_json::json;
 use std::path::PathBuf;
-use tracing::trace_span;
+use tracing::{debug_span, event, info_span, trace_span, Instrument, Level};
 
 #[derive(Debug, actix_multipart::form::MultipartForm)]
 pub(super) struct UploadFile {
@@ -17,16 +17,17 @@ pub(super) async fn handle(
     path: web::ReqData<crate::server::RequestedPath>,
     accept_header: web::Header<header::Accept>,
 ) -> impl Responder {
-    let path = path.as_ref();
-    let dir_path = base_dir.join(path).to_path_buf();
+    let instrumented_fut = async {
+        let path = path.as_ref();
+        let dir_path = base_dir.join(path).to_path_buf();
 
-    // save new files
-    let files = form.into_inner().files;
-    let span = trace_span!("save new files", files_count = files.len());
+        // save new files
+        let files = form.into_inner().files;
+        let span = trace_span!("save new files", files_count = files.len());
 
-    let enter = span.enter();
-    let results = crate::drive_access::save_files(files, &dir_path);
-    let summary = results
+        let enter = span.enter();
+        let results = crate::drive_access::save_files(files, &dir_path);
+        let summary = results
         .map(|(name, r)| match r {
             Ok(_) => {
                 json!({"message": format!("File {} saved", name), "isError": false})
@@ -36,25 +37,32 @@ pub(super) async fn handle(
             }
         })
         .collect::<Vec<_>>();
-    drop(enter);
+        drop(enter);
 
-    let span = trace_span!("list files");
-
-    let _enter = span.enter();
-    let data = crate::drive_access::list_files(&dir_path, &base_dir).await;
-    match data {
-        Ok(data) => {
-            let body = hb.render("files_listing", &data).unwrap();
-            let summary = hb.render("upload_file_summary_message", &summary).unwrap();
-            let confirmation_toast = hb
-                .render("confirmation_toast", &json!({ "message": summary }))
-                .unwrap();
-            if accept_header.iter().any(|h| h.item.subtype() == "json") {
-                HttpResponse::Ok().json(json!({"files": data, "message": summary}))
-            } else {
-                HttpResponse::Ok().body(format!("{}{}", body, confirmation_toast))
+        let data = crate::drive_access::list_files(&dir_path, &base_dir).await;
+        match data {
+            Ok(data) => {
+                let body = debug_span!("render_files_listing")
+                    .in_scope(|| hb.render("files_listing", &data))
+                    .unwrap();
+                let summary = debug_span!("render_upload_file_summary_message")
+                    .in_scope(|| hb.render("upload_file_summary_message", &summary))
+                    .unwrap();
+                let confirmation_toast = debug_span!("render_confirmation_toast")
+                    .in_scope(|| hb.render("confirmation_toast", &json!({ "message": summary })))
+                    .unwrap();
+                if accept_header.iter().any(|h| h.item.subtype() == "json") {
+                    HttpResponse::Ok().json(json!({"files": data, "message": summary}))
+                } else {
+                    HttpResponse::Ok().body(format!("{}{}", body, confirmation_toast))
+                }
+            }
+            Err(err) => {
+                event!(Level::WARN, "error: {:?}", err);
+                HttpResponse::InternalServerError().finish()
             }
         }
-        Err(_) => HttpResponse::InternalServerError().finish(),
     }
+    .instrument(info_span!("handle_upload_file"));
+    instrumented_fut.await
 }

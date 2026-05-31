@@ -6,7 +6,7 @@ use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::resource::{
     EnvResourceDetector, SdkProvidedResourceDetector, TelemetryResourceDetector,
 };
-use opentelemetry_sdk::trace::{Sampler, ShouldSample, SpanLimits};
+use opentelemetry_sdk::trace::{Sampler, ShouldSample};
 use opentelemetry_sdk::Resource;
 
 pub(crate) fn init_opentelemetry_tracer() -> Result<opentelemetry_sdk::trace::Tracer, TraceError> {

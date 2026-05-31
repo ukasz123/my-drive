@@ -6,6 +6,7 @@ use std::{
 use actix_multipart::form::tempfile::TempFile;
 use anyhow::{Context, Ok, Result};
 use glob::MatchOptions;
+use tracing::trace_span;
 
 #[derive(Debug, serde::Serialize)]
 pub(crate) struct FileType {
@@ -119,29 +120,30 @@ fn to_file_metadata(metadata: std::fs::Metadata) -> FileMetadata {
 
 #[tracing::instrument]
 pub(crate) async fn list_files(dir: &PathBuf, base_dir: &PathBuf) -> Result<FilesResult> {
-    let mut files = dir
-        .read_dir()
-        .context(format!("Reading {:?}", dir))?
+    let mut files = trace_span!("read_dir")
+        .in_scope(|| dir.read_dir().context(format!("Reading {:?}", dir)))?
         .filter_map(|f| {
             f.ok().map(|f| {
-                let is_dir = f.file_type().map(|t| t.is_dir()).unwrap_or(false);
-                FileInfo {
-                    name: f.file_name().into_string().unwrap(),
-                    is_dir,
-                    file_type: if is_dir {
-                        None
-                    } else {
-                        Some((f.path().as_path()).try_into().unwrap_or_default())
-                    },
-                    metadata: f.metadata().ok().map(to_file_metadata),
-                }
+                trace_span!("file_info").in_scope(|| {
+                    let is_dir = f.file_type().map(|t| t.is_dir()).unwrap_or(false);
+                    FileInfo {
+                        name: f.file_name().into_string().unwrap(),
+                        is_dir,
+                        file_type: if is_dir {
+                            None
+                        } else {
+                            Some((f.path().as_path()).try_into().unwrap_or_default())
+                        },
+                        metadata: f.metadata().ok().map(to_file_metadata),
+                    }
+                })
             })
         })
         .filter(|f| !f.name.starts_with('.')) // ignore hidden files
         .collect::<Vec<_>>();
 
-    files.sort();
-    files.reverse();
+    trace_span!("sort").in_scope(|| files.sort());
+    trace_span!("reverse").in_scope(|| files.reverse());
 
     Ok(FilesResult {
         files,
@@ -190,8 +192,8 @@ pub(crate) fn query_files(query: &str, base_dir: &Path) -> Result<Vec<FileInfo>>
         })
         .filter(|f| !f.name.starts_with('.')) // ignore hidden files
         .collect::<Vec<_>>();
-    files.sort();
-    files.reverse();
+    trace_span!("sort").in_scope(|| files.sort());
+    trace_span!("reverse").in_scope(|| files.reverse());
     Ok(files)
 }
 

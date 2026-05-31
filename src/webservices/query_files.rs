@@ -4,6 +4,7 @@ use actix_multipart::form::text::Text;
 use actix_web::{web, Either, HttpResponse, Responder};
 use handlebars::Handlebars;
 use serde_json::json;
+use tracing::{field, info_span, Instrument, Span};
 
 use super::utilities::multitype_input::{EitherInputExtended, EitherInputExtendedWrapper};
 
@@ -22,25 +23,30 @@ pub(super) async fn handle(
     hb: web::Data<Handlebars<'_>>,
     base_dir: web::Data<PathBuf>,
 ) -> impl Responder + '_ {
-    let request_wrapper = EitherInputExtendedWrapper(request);
-    let request = (&request_wrapper).into();
-    let query: &str = match request {
-        Either::Left(query) => query.query.as_str(),
-        Either::Right(query) => query.query.as_str(),
-    };
+    async {
+        let request_wrapper = EitherInputExtendedWrapper(request);
+        let request = (&request_wrapper).into();
+        let query: &str = match request {
+            Either::Left(query) => query.query.as_str(),
+            Either::Right(query) => query.query.as_str(),
+        };
+        Span::current().record("query", query);
 
-    let files = crate::drive_access::query_files(query, base_dir.as_ref());
-    match files {
-        Ok(files) => {
-            let response = super::response_renderer::ResponseRenderer::new(
-                json!({ "files": files }),
-                "query_results",
-                hb.into_inner().clone(),
-            );
-            Either::Left(response)
+        let files = crate::drive_access::query_files(query, base_dir.as_ref());
+        match files {
+            Ok(files) => {
+                let response = super::response_renderer::ResponseRenderer::new(
+                    json!({ "files": files }),
+                    "query_results",
+                    hb.into_inner().clone(),
+                );
+                Either::Left(response)
+            }
+            Err(e) => Either::Right(
+                HttpResponse::InternalServerError().body(format!("Error querying files: {}", e)),
+            ),
         }
-        Err(e) => Either::Right(
-            HttpResponse::InternalServerError().body(format!("Error querying files: {}", e)),
-        ),
     }
+    .instrument(info_span!("handle_query", query = field::Empty))
+    .await
 }
