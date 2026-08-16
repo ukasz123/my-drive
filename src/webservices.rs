@@ -12,6 +12,7 @@ mod query_files;
 mod response_renderer;
 mod upload_file;
 mod utilities;
+mod zip_dir;
 
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum FileListInputError {
@@ -43,6 +44,11 @@ pub(crate) async fn start_http_server(
                 web::resource("/")
                     .guard(guard::Post())
                     .route(web::post().to(query_files::handle)),
+            )
+            .service(
+                web::resource("/{path:.*}:zip")
+                    .wrap(crate::server::RequestPath)
+                    .route(web::get().to(zip_dir::handle)),
             )
             .service(
                 web::resource("/{path:.*}")
