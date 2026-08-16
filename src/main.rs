@@ -10,6 +10,8 @@ mod default_runner;
 #[cfg(feature = "ngrok")]
 mod ngrok_runner;
 
+mod utils;
+
 #[actix_web::main]
 async fn main() -> anyhow::Result<()> {
     dotenv::dotenv().ok();

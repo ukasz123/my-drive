@@ -168,7 +168,7 @@ fn relative_path(path: &Path, base_dir: &PathBuf) -> Result<String> {
 pub(crate) fn query_files(query: &str, base_dir: &Path) -> Result<Vec<FileInfo>> {
     use glob::glob_with;
     let paths = glob_with(
-        &format!("{}/**/{}*", &base_dir.as_os_str().to_str().unwrap(), query),
+        &format!("{}/**/{}*", base_dir.as_os_str().to_str().unwrap(), query),
         MatchOptions {
             case_sensitive: false,
             ..Default::default()

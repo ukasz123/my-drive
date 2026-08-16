@@ -9,12 +9,14 @@ edition = "2021"
 actix-files = "0.6.2"
 actix-multipart = "0.6.0"
 actix-web = "4.3.1"
+tokio = {version = "^1.44", features=["rt","io-util", "fs"]}
+
 anyhow = "1.0.72"
 thiserror = "1.0.44"
 
 dotenv = "0.15.0"
 file-format = { version = "0.25.0", features = ["reader"] }
-futures = { version = "0.3.28", optional = true }
+futures = { version = "0.3.28" }
 glob = "0.3.1"
 
 handlebars = { version = "5.1.2", features = ["dir_source"] }
@@ -38,6 +40,11 @@ opentelemetry-otlp = { version = "0.15", features = [
 tracing-opentelemetry = { version = "0.23.0" }
 tonic = { version = "0.11", features = ["tls"] }
 
+walkdir = "2.5.0"
+async_zip = { version = "0.0.18", features = ["tokio", "deflate","tokio-fs"] }
+tokio-stream = "0.1.19"
+tokio-util = {version = "0.7.19", features = ["full"]}
+
 [features]
 default = []
-ngrok = ["dep:ngrok", "dep:futures", "dep:toml"]
+ngrok = ["dep:ngrok", "dep:toml"]

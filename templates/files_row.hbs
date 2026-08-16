@@ -16,6 +16,10 @@
     <a type="button" class="btn btn-primary" href="{{path}}/{{file.name}}" target="_blank"><i
         class="bi-cloud-download"></i></a>
     {{/unless}}
+    {{#if file.is_dir}}
+    <a type="button" class="btn btn-secondary" href="{{path}}/{{file.name}}:zip" target="_blank"  onclick="event.stopPropagation();"><i
+        class="bi-file-zip"></i></a>
+    {{/if}}
     <button type="button" class="btn btn-danger" hx-delete="{{path}}/{{file.name}}" hx-target="#file-listing"><i
         class="bi-trash"></i></button>
   </td>
