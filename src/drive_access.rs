@@ -101,7 +101,14 @@ impl Ord for FileInfo {
 pub(crate) struct FilesResult {
     pub files: Vec<FileInfo>,
     pub path: String,
+    pub breadcrumbs: Vec<DirBreadcrumb>,
     pub parent: Option<String>,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub(crate) struct DirBreadcrumb {
+    pub(crate) name: String,
+    pub(crate) path: String,
 }
 
 fn to_file_metadata(metadata: std::fs::Metadata) -> FileMetadata {
@@ -144,9 +151,34 @@ pub(crate) async fn list_files(dir: &PathBuf, base_dir: &PathBuf) -> Result<File
 
     trace_span!("sort").in_scope(|| files.sort());
     trace_span!("reverse").in_scope(|| files.reverse());
+    let mut breadcrumbs = dir
+        .ancestors()
+        .filter_map(|path| {
+            let relative_path = relative_path(path, base_dir).ok();
+            relative_path
+                .map(|p| {
+                    if p.is_empty() {
+                        Some(DirBreadcrumb {
+                            path: "/".to_string(),
+                            name: ".".to_string(),
+                        })
+                    } else {
+                        path.file_name()
+                            .and_then(|name| name.to_str().map(|name| name.to_string()))
+                            .map(|name| DirBreadcrumb {
+                                name: name,
+                                path: p,
+                            })
+                    }
+                })
+                .flatten()
+        })
+        .collect::<Vec<_>>();
+    breadcrumbs.reverse();
 
     Ok(FilesResult {
         files,
+        breadcrumbs,
         path: relative_path(dir, base_dir)?,
         parent: dir
             .parent()
