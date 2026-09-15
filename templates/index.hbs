@@ -7,6 +7,14 @@
   <title>My Drive</title>
   <link href="/static/css/bootstrap.min.css" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" />
+
+
+  {{#if (is_debug_build)}}
+  <script src="/static/js/custom/debugging-tools.js"></script>
+  {{else}}
+  <script src="/static/js/custom/debugging-tools.stub.js"></script>
+  {{/if}}
+
 </head>
 
 <body>
@@ -28,11 +36,7 @@
 
   <script src="/static/js/bootstrap.bundle.min.js"></script>
   <script src="/static/js/htmx.min.js"></script>
-  {{#if (is_debug_build)}}
-  <script src="/static/js/custom/debugging-tools.js"></script>
-  {{else}}
-  <script src="/static/js/custom/debugging-tools.stub.js"></script>
-  {{/if}}
+  <script defer src="/static/js/alpinejs.min.js"/>
 
   <!-- feedback -->
   <div class="toast-container position-fixed bottom-0 start-0 p-3">

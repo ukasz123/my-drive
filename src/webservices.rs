@@ -9,6 +9,7 @@ mod folder_contents;
 mod index;
 mod list_files;
 mod query_files;
+mod rename;
 mod response_renderer;
 mod upload_file;
 mod utilities;
@@ -63,6 +64,7 @@ pub(crate) async fn start_http_server(
                             .to(folder_contents::handle),
                     )
                     .route(web::get().to(index::handle))
+                    .route(web::post().to(rename::handle))
                     .route(
                         web::put()
                             .guard(guard::Header("command", "new_folder"))

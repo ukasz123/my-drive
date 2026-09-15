@@ -97,6 +97,28 @@ impl Ord for FileInfo {
     }
 }
 
+impl From<std::fs::DirEntry> for FileInfo {
+    fn from(f: std::fs::DirEntry) -> Self {
+        f.path().into()
+    }
+}
+
+impl From<PathBuf> for FileInfo {
+    fn from(path: PathBuf) -> Self {
+        let is_dir = path.is_dir();
+        FileInfo {
+            name: path.file_name().unwrap().to_str().unwrap().to_owned(),
+            is_dir,
+            file_type: if is_dir {
+                None
+            } else {
+                Some((path.as_path()).try_into().unwrap_or_default())
+            },
+            metadata: path.metadata().ok().map(to_file_metadata),
+        }
+    }
+}
+
 #[derive(Debug, serde::Serialize)]
 pub(crate) struct FilesResult {
     pub files: Vec<FileInfo>,
@@ -130,21 +152,8 @@ pub(crate) async fn list_files(dir: &PathBuf, base_dir: &PathBuf) -> Result<File
     let mut files = trace_span!("read_dir")
         .in_scope(|| dir.read_dir().context(format!("Reading {:?}", dir)))?
         .filter_map(|f| {
-            f.ok().map(|f| {
-                trace_span!("file_info").in_scope(|| {
-                    let is_dir = f.file_type().map(|t| t.is_dir()).unwrap_or(false);
-                    FileInfo {
-                        name: f.file_name().into_string().unwrap(),
-                        is_dir,
-                        file_type: if is_dir {
-                            None
-                        } else {
-                            Some((f.path().as_path()).try_into().unwrap_or_default())
-                        },
-                        metadata: f.metadata().ok().map(to_file_metadata),
-                    }
-                })
-            })
+            f.ok()
+                .map(|f| trace_span!("file_info").in_scope(|| FileInfo::from(f)))
         })
         .filter(|f| !f.name.starts_with('.')) // ignore hidden files
         .collect::<Vec<_>>();
@@ -188,7 +197,7 @@ pub(crate) async fn list_files(dir: &PathBuf, base_dir: &PathBuf) -> Result<File
     })
 }
 
-fn relative_path(path: &Path, base_dir: &PathBuf) -> Result<String> {
+pub(crate) fn relative_path(path: &Path, base_dir: &PathBuf) -> Result<String> {
     let path = path.strip_prefix(base_dir)?.as_os_str().to_str().unwrap();
     if path.is_empty() {
         return Ok("".to_owned());
@@ -209,21 +218,9 @@ pub(crate) fn query_files(query: &str, base_dir: &Path) -> Result<Vec<FileInfo>>
 
     let mut files = paths
         .filter_map(|p| p.ok())
-        .map(|path| {
-            let is_dir = path.is_dir();
-            FileInfo {
-                name: path.file_name().unwrap().to_str().unwrap().to_owned(),
-                is_dir,
-                file_type: if is_dir {
-                    None
-                } else {
-                    Some((path.as_path()).try_into().unwrap_or_default())
-                },
-                metadata: path.metadata().ok().map(to_file_metadata),
-            }
-        })
+        .map(|path| FileInfo::from(path))
         .filter(|f| !f.name.starts_with('.')) // ignore hidden files
-        .collect::<Vec<_>>();
+        .collect::<Vec<FileInfo>>();
     trace_span!("sort").in_scope(|| files.sort());
     trace_span!("reverse").in_scope(|| files.reverse());
     Ok(files)

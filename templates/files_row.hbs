@@ -1,17 +1,24 @@
-{{#if file.is_dir}}
-<tr class="align-middle" hx-get="{{path}}/{{file.name}}" hx-target="#file-listing" style="cursor: pointer"
-  hx-push-url="true">
-  {{else}}
-<tr class="align-middle">
-  {{/if}}
+
+<tr class="align-middle" x-data="{ editing_name: false }"
+    {{#if file.is_dir}} hx-get="{{path}}/{{file.name}}" hx-target="#file-listing" style="cursor: pointer"
+    hx-push-url="true"
+    {{/if}}
+  >
   <td>
     <i class="{{#if file.is_dir }}bi-folder{{else}}{{> file_icon type=file.file_type.f_type}}{{/if}}"></i>
   </td>
   <td>
-    <div>{{file.name}}</div>
+    <div>
+        <span  x-show="!editing_name">{{file.name}}</span>
+        <div hx-disinherit="true" class="input-group" x-show="editing_name" @click="$event.stopPropagation()">
+            <input type="text" value="{{file.name}}" id="name" name="name" class="form-control" placeholder="File name" aria-label="File name">
+            <button type="submit" hx-post="{{path}}/{{file.name}}" hx-target="closest tr" hx-swap="outerHTML" hx-push-url="false" class="input-group-text"><i class="bi-send-check"></i></button>
+        </div>
+    </div>
   </td>
   <td>{{#unless file.is_dir}}<em>{{format_file_size file.metadata.size}}</em>{{/unless}}</td>
   <td>
+    <button type="button" class="btn btn-secondary" @click="editing_name = !editing_name;$event.stopPropagation();"><i :class="editing_name ? 'bi-x-circle': 'bi-pencil'"></i></button>
     {{#unless file.is_dir}}
     <a type="button" class="btn btn-primary" href="{{path}}/{{file.name}}" target="_blank"><i
         class="bi-cloud-download"></i></a>
