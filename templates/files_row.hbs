@@ -11,8 +11,8 @@
     <div>
         <span  x-show="!editing_name">{{file.name}}</span>
         <div hx-disinherit="true" class="input-group" x-show="editing_name" @click="$event.stopPropagation()">
-            <input type="text" value="{{file.name}}" id="name" name="name" class="form-control" placeholder="File name" aria-label="File name">
-            <button type="submit" hx-post="{{path}}/{{file.name}}" hx-target="closest tr" hx-swap="outerHTML" hx-push-url="false" class="input-group-text"><i class="bi-send-check"></i></button>
+            <input type="text" value="{{file.name}}" id="name{{file.name}}" name="name{{file.name}}" class="form-control" placeholder="File name" aria-label="File name">
+            <button type="submit" hx-post="{{path}}/{{file.name}}" hx-target="closest tr" hx-swap="outerHTML" hx-push-url="false" hx-include="#name{{file.name}}" class="input-group-text"><i class="bi-send-check"></i></button>
         </div>
     </div>
   </td>
